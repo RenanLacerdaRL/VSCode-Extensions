@@ -1,0 +1,23 @@
+{
+  "name": "local-var-spacing-checker",
+  "displayName": "RenanLacerda - Local Variable Spacing Checker",
+  "description": "Verifica se há linha em branco antes de variáveis locais.",
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "icon": "icon.png",
+  "activationEvents": [
+    "onLanguage:typescript",
+    "onLanguage:typescriptreact",
+    "onLanguage:javascript",
+    "onLanguage:javascriptreact",
+    "onLanguage:csharp"
+  ],
+  "main": "./extension.js",
+  "contributes": {}
+}

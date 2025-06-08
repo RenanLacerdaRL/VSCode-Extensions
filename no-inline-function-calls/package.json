@@ -1,0 +1,23 @@
+{
+  "name": "no-inline-function-calls",
+  "displayName": "RenanLacerda - Funções na mesma linha",
+  "description": "Evita chamadas de função aninhadas na mesma linha (inline) e chamadas encadeadas, exceto quando feitas sobre variáveis locais, parâmetros, propriedades de classe (ex: this.data), dentro de arrays, ou em member chains baseados nessas variáveis.",
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "icon": "icon.png",
+  "activationEvents": [
+    "onLanguage:typescript",
+    "onLanguage:typescriptreact",
+    "onLanguage:javascript",
+    "onLanguage:javascriptreact",
+    "onLanguage:csharp"
+  ],
+  "main": "./extension.js",
+  "contributes": {}
+}

@@ -1,0 +1,23 @@
+{
+  "name": "no-async-return-any",
+  "displayName": "RenanLacerda - Async retornando any",
+  "description": "Funções async não devem retornar valores do tipo 'any' explicitamente.",
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "icon": "icon.png",
+  "activationEvents": [
+    "onLanguage:typescript",
+    "onLanguage:typescriptreact",
+    "onLanguage:javascript",
+    "onLanguage:javascriptreact",
+    "onLanguage:csharp"
+  ],
+  "main": "./extension.js",
+  "contributes": {}
+}

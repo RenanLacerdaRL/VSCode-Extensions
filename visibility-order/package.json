@@ -1,0 +1,23 @@
+{
+  "name": "visibility-order",
+  "displayName": "RenanLacerda - Ordem de Visibilidade",
+  "description": "Verifica se membros públicos, protegidos e privados estão ordenados corretamente dentro das classes.",
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "icon": "icon.png",
+  "activationEvents": [
+    "onLanguage:typescript",
+    "onLanguage:typescriptreact",
+    "onLanguage:javascript",
+    "onLanguage:javascriptreact",
+    "onLanguage:csharp"
+  ],
+  "main": "./extension.js",
+  "contributes": {}
+}

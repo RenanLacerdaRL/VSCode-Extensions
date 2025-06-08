@@ -1,0 +1,24 @@
+{
+  "name": "array-name-plural",
+  "displayName": "RenanLacerda – Nomes de arrays no plural",
+  "publisher": "RenanLacerda",
+  "description": "Garante que variáveis e parâmetros do tipo array terminem com “s” em TypeScript, JavaScript e C#.",
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "icon": "icon.png",
+  "activationEvents": [
+    "onLanguage:typescript",
+    "onLanguage:typescriptreact",
+    "onLanguage:javascript",
+    "onLanguage:javascriptreact",
+    "onLanguage:csharp"
+  ],
+  "main": "./extension.js",
+  "contributes": {}
+}

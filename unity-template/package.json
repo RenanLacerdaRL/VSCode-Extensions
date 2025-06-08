@@ -1,0 +1,86 @@
+{
+    "name": "unity-template",
+    "displayName": "RenanLacerda - Unity Template",
+    "description": "Caminho do diretório de templates para a extensão Unity Template",
+    "version": "0.0.1",
+    "repository": {
+        "type": "git",
+        "url": ""
+    },
+    "engines": {
+        "vscode": "^1.60.0"
+    },
+    "icon": "icon.png",
+     "activationEvents": [
+        "onCommand:extension.openTemplatesFolder",
+        "onCommand:extension.CreateFileComponent",
+        "onCommand:extension.CreateFileEvent",
+        "onCommand:extension.CheckCsProj"
+    ],
+    "main": "./extension.js",
+    "contributes": {
+        "commands": [
+            {
+                "command": "extension.openTemplatesFolder",
+                "title": "Open Templates Folder"
+            },
+            {
+                "command": "extension.CreateFileComponent",
+                "title": "Generate Unity Component"
+            },
+            {
+                "command": "extension.CreateFileEvent",
+                "title": "Generate Unity Event"
+            },
+            {
+                "command": "extension.GenerateConstructor",
+                "title": "Generate Unity Constructor"
+            },
+            {
+                "command": "extension.CheckCsProj",
+                "title": "Verify CSProject"
+            }
+        ],
+        "menus": {
+            "explorer/context": [
+                {
+                    "command": "extension.openTemplatesFolder",
+                    "group": "8_unity",
+                    "when": "explorerResourceIsFolder"
+                },
+                {
+                    "command": "extension.CreateFileComponent",
+                    "group": "8_unity",
+                    "when": "explorerResourceIsFolder"
+                },
+                {
+                    "command": "extension.CreateFileEvent",
+                    "group": "8_unity",
+                    "when": "explorerResourceIsFolder"
+                },
+                {
+                    "command": "extension.CheckCsProj",
+                    "group": "8_unity",
+                    "when": "resourceLangId == 'csharp'"
+                }
+            ],
+            "editor/context": [
+                {
+                    "command": "extension.GenerateConstructor",
+                    "group": "1_unity",
+                    "when": "editorLangId == 'csharp'"
+                }
+            ]
+        },
+        "configuration": {
+            "title": "Unity Template",
+            "properties": {
+                "unityTemplate.templateFolder": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Caminho do diretório de templates para a extensão Unity Template"
+                }
+            }
+        }
+    }
+}

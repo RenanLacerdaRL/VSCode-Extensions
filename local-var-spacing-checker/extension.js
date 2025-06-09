@@ -42,6 +42,9 @@ function activate(context) {
             const line = rawLine.trim();
             const nextLine = lines[i + 1].trim();
 
+            // Ignorar diretivas de pré-processador
+            if (line.startsWith('#')) continue;
+
             if (
                 !inMethod &&
                 (
@@ -63,7 +66,6 @@ function activate(context) {
             }
 
             if (inMethod && varPattern && line.match(varPattern) && !rawLine.includes('=>')) {
-                // Novo ajuste para ignorar aviso após controle
                 const prevLine = lines[i - 1]?.trim() || '';
                 const isAfterControl = /^(return|if|else|do|while|for|switch|catch|try|throw|case|default)\b/.test(prevLine) || line.startsWith('case') || line.startsWith('default') || nextLine.startsWith('break');
 
@@ -72,8 +74,9 @@ function activate(context) {
                 const nextIsVar = nextLine.match(varPattern);
                 const nextIsBlockEnd = nextLine === '}' || nextLine === '';
                 const nextIsComment = nextLine.startsWith('//') || nextLine.startsWith('/*');
+                const nextIsDirective = nextLine.startsWith('#');
 
-                if (!nextIsVar && !nextIsBlockEnd && !nextIsComment) {
+                if (!nextIsVar && !nextIsBlockEnd && !nextIsComment && !nextIsDirective) {
                     const range = new vscode.Range(new vscode.Position(i, 0), new vscode.Position(i, rawLine.length));
 
                     diagnostics.push(new vscode.Diagnostic(

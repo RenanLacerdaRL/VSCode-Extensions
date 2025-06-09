@@ -54,6 +54,7 @@ function updateDiagnostics(document) {
         // 1) Locais: const|let|var com array literal ou Array<> tipado
         const tsPattern = /^\s*(?:const|let|var)\s+(\w+)\s*(?::\s*([^=;]+))?\s*=\s*(?:\[|new\s+Array<)/gm;
         let match;
+        
         while ((match = tsPattern.exec(text)) !== null) {
             const varName = match[1];
             if (!varName.endsWith('s')) {

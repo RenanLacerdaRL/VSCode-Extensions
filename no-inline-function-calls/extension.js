@@ -3,7 +3,7 @@ const vscode = require('vscode');
 let diagnosticsCollection;
 
 function activate(context) {
-    diagnosticsCollection = vscode.languages.createDiagnosticCollection('noInlineNestedCalls');
+    diagnosticsCollection = vscode.languages.createDiagnosticCollection('inlineFunctionCall');
 
     if (vscode.window.activeTextEditor) {
         updateDiagnostics(vscode.window.activeTextEditor.document);
@@ -21,98 +21,61 @@ function activate(context) {
 }
 
 function deactivate() {
-    if (diagnosticsCollection) {
-        diagnosticsCollection.dispose();
-    }
+    if (diagnosticsCollection) diagnosticsCollection.dispose();
 }
 
 function updateDiagnostics(document) {
-    const langs = [
-        'typescript',
-        'typescriptreact',
-        'javascript',
-        'javascriptreact',
-        'csharp'
-    ];
-
-    if (!langs.includes(document.languageId)) {
+    const supportedLangs = ['typescript','typescriptreact','javascript','javascriptreact','csharp'];
+    if (!supportedLangs.includes(document.languageId)) {
         diagnosticsCollection.delete(document.uri);
         return;
     }
 
+    const lines = document.getText().split('\n');
     const diagnostics = [];
-    const text = document.getText();
-    const lines = text.split('\n');
 
-    // Expressão regular para encontrar chamadas de função aninhadas
-    const nestedCallRegex = /\b\w+\([^)]*\b\w+\([^)]*\)[^)]*\)/g;
-    // Expressão regular para encontrar 'new' dentro de chamadas (mantida do código original)
-    const newInCallRegex = /\b\w+\([^)]*\bnew\s+\w+\s*\([^)]*\)[^)]*\)/g;
+    // Regex para detectar chamadas aninhadas (função dentro de função)
+    const nestedCallRegex = /\b\w+\s*\((?:[^()]*\b\w+\s*\([^()]*\)[^()]*)+\)/g;
+    // Detecta estruturas de controle
+    const controlStructRegex = /^\s*(if|for|while|switch)\b/;
 
-    for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
-        const line = lines[lineIndex];
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
 
-        // Verificar chamadas de função aninhadas
-        checkNestedCalls(line, lineIndex, diagnostics, nestedCallRegex);
+        // Ignora linhas de estruturas de controle
+        if (controlStructRegex.test(line)) {
+            continue;
+        }
 
-        // Manter a verificação de 'new' (código original)
-        checkNewInCalls(line, lineIndex, diagnostics, newInCallRegex);
+        // Remove literais de string (mascara por espaços para manter índices)
+        const codeLine = line.replace(/"([^"\\]|\\.)*"/g, str => ' '.repeat(str.length));
+
+        // Detecta chamadas aninhadas
+        let match;
+        while ((match = nestedCallRegex.exec(codeLine)) !== null) {
+            const snippet = match[0];
+            const openParens = (snippet.match(/\(/g) || []).length;
+            // avisa apenas se houver 2 ou mais "("
+            if (openParens >= 2) {
+                diagnostics.push(createDiag(
+                    i,
+                    match.index,
+                    snippet.length,
+                    'Considere extrair a função interna para uma variável antes.'
+                ));
+            }
+        }
     }
 
     diagnosticsCollection.set(document.uri, diagnostics);
 }
 
-function checkNestedCalls(line, lineIndex, diagnostics, regex) {
-    let match;
-    while ((match = regex.exec(line)) !== null) {
-        const fullMatch = match[0];
-        const innerMatch = /\b\w+\([^)]*\)/.exec(fullMatch);
-
-        if (!innerMatch) continue;
-
-        const startIndex = match.index + innerMatch.index;
-        const endIndex = startIndex + innerMatch[0].length;
-
-        const startPos = new vscode.Position(lineIndex, startIndex);
-        const endPos = new vscode.Position(lineIndex, endIndex);
-        const range = new vscode.Range(startPos, endPos);
-
-        diagnostics.push(
-            new vscode.Diagnostic(
-                range,
-                'Chamada de função aninhada inline. Considere extrair para uma variável temporária para melhor legibilidade.',
-                vscode.DiagnosticSeverity.Warning
-            )
-        );
-    }
+function createDiag(line, chStart, length, message) {
+    const range = new vscode.Range(
+        new vscode.Position(line, chStart),
+        new vscode.Position(line, chStart + length)
+    );
+    return new vscode.Diagnostic(range, message, vscode.DiagnosticSeverity.Warning);
 }
 
-function checkNewInCalls(line, lineIndex, diagnostics, regex) {
-    let match;
-    while ((match = regex.exec(line)) !== null) {
-        const fullMatch = match[0];
-        const newMatch = /new\s+\w+\s*\([^)]*\)/.exec(fullMatch);
-
-        if (!newMatch) continue;
-
-        const startIndex = match.index + newMatch.index;
-        const endIndex = startIndex + newMatch[0].length;
-
-        const startPos = new vscode.Position(lineIndex, startIndex);
-        const endPos = new vscode.Position(lineIndex, endIndex);
-        const range = new vscode.Range(startPos, endPos);
-
-        diagnostics.push(
-            new vscode.Diagnostic(
-                range,
-                'Expressão "new" dentro de chamada de função. Considere extrair para uma variável temporária.',
-                vscode.DiagnosticSeverity.Warning
-            )
-        );
-    }
-}
-
-module.exports = {
-    activate,
-    deactivate
-};
+module.exports = { activate, deactivate };

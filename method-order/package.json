@@ -5,7 +5,7 @@
   "version": "0.0.2",
   "repository": {
     "type": "git",
-    "url": "https://github.com/RenanLacerda/method-order"
+    "url": ""
   },
   "engines": { "vscode": "^1.60.0" },
   "icon": "icon.png",
@@ -17,5 +17,25 @@
     "onLanguage:csharp"
   ],
   "main": "./extension.js",
-  "contributes": {}
+"contributes": {
+  "configuration": {
+    "type": "object",
+    "title": "Method Order Configuration",
+    "properties": {
+      "methodOrder.prefixOrder": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "default": [
+          "constructor", "ngOnInit", "Awake", "Create", "Start", "Setup", "Patch", "Initialize", "Tick",
+          "Get", "Load", "Set", "Post", "Save", "Put", "Copy", "Update", "Is", "Exists", "Approve", "Valid", "Invalid",
+          "__ANY__", "Increase", "Decrease", "Min", "Max", "Enable", "Disable", "Show", "Hide", "Success", "Notification", "Information",
+          "Warning", "Error", "Dismiss", "Remove", "Close", "Delete", "Destroy", "Reset", "On", "Subscriber"
+        ],
+        "description": "Lista ordenada dos prefixos de métodos para organizar métodos não chamados. Use '__ANY__' para indicar qualquer outro prefixo."
+      }
+    }
+  }
+}
 }

@@ -9,6 +9,7 @@ function activate(context) {
         if (!document) return;
 
         const supportedLanguages = ['typescript', 'typescriptreact', 'javascript', 'javascriptreact', 'csharp'];
+
         if (!supportedLanguages.includes(document.languageId)) {
             diagnosticsCollection.delete(document.uri);
             return;
@@ -18,63 +19,68 @@ function activate(context) {
         const text = document.getText();
         const lines = text.split('\n');
 
-        // Regex melhorada para variáveis locais
         const varRegex = {
-            csharp: /^\s*(?:var|int|float|string|bool|Vector\d|GameObject)\s+\w+/i,
+            csharp: /^\s*(?:var|[A-Za-z_]\w*(?:<[\w<>;, ]+>)?)(\[\])?\s+\w+/,
             typescript: /^\s*(?:const|let|var)\s+\w+/i,
             javascript: /^\s*(?:const|let|var)\s+\w+/i
         };
 
-        // Regex para métodos/funções
         const methodRegex = {
-            csharp: /^\s*(?:public|private|protected|internal)?\s*(?:static\s+)?(?:async\s+)?[^{]+{\s*$/,
+            csharp: /^\s*(?:public|private|protected|internal)?\s*(?:static\s+)?(?:async\s+)?\s*\w[\w<>]*\s+\w+\s*\([^)]*\)\s*\{?\s*$/,
             typescript: /^\s*(?:public|private|protected)?\s*(?:async\s+)?\s*\w+\s*\([^)]*\)\s*(?::\s*\w+)?\s*\{?\s*$/,
             javascript: /^\s*(?:async\s+)?\s*(?:function\s*)?\w*\s*\([^)]*\)\s*\{?\s*$/
         };
 
+        const langId = document.languageId;
+        const varPattern = varRegex[langId];
+        const methodPattern = methodRegex[langId];
+
         let inMethod = false;
-        let methodStartLine = 0;
 
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
+        for (let i = 0; i < lines.length - 1; i++) {
+            const rawLine = lines[i];
+            const line = rawLine.trim();
+            const nextLine = lines[i + 1].trim();
 
-            // Detecta início do método
-            if (!inMethod && line.match(methodRegex[document.languageId] || methodRegex.default)) {
+            if (
+                !inMethod &&
+                (
+                    (methodPattern && line.match(methodPattern)) ||
+                    line.startsWith('for') ||
+                    line.startsWith('foreach') ||
+                    line.startsWith('while') ||
+                    line.startsWith('if') ||
+                    line.startsWith('switch')
+                )
+            ) {
                 inMethod = true;
-                methodStartLine = i;
                 continue;
             }
 
-            // Detecta fim do método
-            if (inMethod && line.includes('}')) {
+            if (inMethod && line === '}') {
                 inMethod = false;
                 continue;
             }
 
-            if (inMethod) {
-                const isLocalVar = line.match(varRegex[document.languageId] || varRegex.default);
+            if (inMethod && varPattern && line.match(varPattern) && !rawLine.includes('=>')) {
+                // Novo ajuste para ignorar aviso após controle
+                const prevLine = lines[i - 1]?.trim() || '';
+                const isAfterControl = /^(return|if|else|do|while|for|switch|catch|try|throw|case|default)\b/.test(prevLine) || line.startsWith('case') || line.startsWith('default') || nextLine.startsWith('break');
 
-                if (isLocalVar) {
-                    const nextLineIndex = i + 1;
-                    if (nextLineIndex < lines.length) {
-                        const nextLine = lines[nextLineIndex].trim();
-                        const nextIsVar = nextLine.match(varRegex[document.languageId] || varRegex.default);
-                        const nextIsBlockEnd = nextLine.includes('}');
-                        const nextIsComment = nextLine.startsWith('//') || nextLine.startsWith('/*');
+                if (isAfterControl) continue;
 
-                        if (!nextIsVar && !nextIsBlockEnd && !nextIsComment && nextLine !== '') {
-                            const range = new vscode.Range(
-                                new vscode.Position(i, 0),
-                                new vscode.Position(i, line.length)
-                            );
+                const nextIsVar = nextLine.match(varPattern);
+                const nextIsBlockEnd = nextLine === '}' || nextLine === '';
+                const nextIsComment = nextLine.startsWith('//') || nextLine.startsWith('/*');
 
-                            diagnostics.push(new vscode.Diagnostic(
-                                range,
-                                'Adicione uma linha em branco após declaração de variável local',
-                                vscode.DiagnosticSeverity.Warning
-                            ));
-                        }
-                    }
+                if (!nextIsVar && !nextIsBlockEnd && !nextIsComment) {
+                    const range = new vscode.Range(new vscode.Position(i, 0), new vscode.Position(i, rawLine.length));
+
+                    diagnostics.push(new vscode.Diagnostic(
+                        range,
+                        'Adicione uma linha em branco após declaração de variável local.',
+                        vscode.DiagnosticSeverity.Warning
+                    ));
                 }
             }
         }
@@ -82,12 +88,10 @@ function activate(context) {
         diagnosticsCollection.set(document.uri, diagnostics);
     };
 
-    // Configuração inicial
     if (vscode.window.activeTextEditor) {
         updateDiagnostics(vscode.window.activeTextEditor.document);
     }
 
-    // Listeners
     context.subscriptions.push(
         vscode.window.onDidChangeActiveTextEditor(editor => {
             if (editor) updateDiagnostics(editor.document);

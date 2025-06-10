@@ -58,33 +58,7 @@ function updateDiagnostics(document) {
         const name = isCS ? match[4] : match[2];
         methods.push({ name, start: match.index });
     }
-
-    // Encontrar o nome da classe (apenas para C#)
-    let className = '';
-    if (isCS) {
-        const classMatch = text.match(/class\s+(\w+)/);
-        if (classMatch) {
-            className = classMatch[1];
-        }
-    }
-
-    // Ordenar métodos: construtor primeiro (se existir), depois os demais
     const definedOrder = methods.map(m => m.name);
-    if (className && definedOrder.includes(className)) {
-        const constructorIndex = definedOrder.indexOf(className);
-        if (constructorIndex > 0) {
-            // Criar diagnóstico para o construtor não ser o primeiro método
-            const cm = methods.find(x => x.name === className);
-            const pos = document.positionAt(cm.start);
-            const range = new vscode.Range(pos, pos.translate(0, className.length));
-
-            diagnostics.push(new vscode.Diagnostic(
-                range,
-                `O construtor "${className}" deve ser o primeiro método da classe.`,
-                vscode.DiagnosticSeverity.Warning
-            ));
-        }
-    }
 
     const callMap = new Map();
     const firstCaller = {};
@@ -118,7 +92,7 @@ function updateDiagnostics(document) {
         callMap.set(m.name, calls);
     }
 
-    const blocks = {};
+   const blocks = {};
     const lines = text.split('\n');
     let currentBlock = '__DEFAULT__';
     let blockMap = {};
@@ -173,7 +147,7 @@ function updateDiagnostics(document) {
 
                 diagnostics.push(new vscode.Diagnostic(
                     range,
-                    `O método "${expected}" precisa estar abaixo de "${caller}".`,
+                    `O método "${expected}" precisa estar abaixo de "${caller}" como chamada ${k + 1}.`,
                     vscode.DiagnosticSeverity.Warning
                 ));
                 warned.add(callee);
@@ -188,9 +162,6 @@ function updateDiagnostics(document) {
         const anyIdx = prefixOrders.indexOf('__ANY__');
 
         const withIdx = uncalled.map(x => {
-            // Se for o construtor, sempre colocar no índice 0
-            if (isCS && x.name === className) return { ...x, prefixIdx: -1, suffix: x.name.toLowerCase() };
-
             let p = prefixOrders.findIndex(pref => x.name.startsWith(pref));
             if (p === -1) p = anyIdx;
             return { ...x, prefixIdx: p, suffix: x.name.toLowerCase() };
@@ -198,23 +169,6 @@ function updateDiagnostics(document) {
 
         for (let i = 0; i < withIdx.length - 1; i++) {
             const cur = withIdx[i], nxt = withIdx[i + 1];
-
-            // Ignorar se o atual for o construtor (já tratamos ele separadamente)
-            if (isCS && cur.name === className) continue;
-
-            // Se o próximo for o construtor, sempre é erro (deve vir primeiro)
-            if (isCS && nxt.name === className) {
-                const pos = document.positionAt(nxt.start);
-                const rng = new vscode.Range(pos, pos.translate(0, nxt.name.length));
-
-                diagnostics.push(new vscode.Diagnostic(
-                    rng,
-                    `O construtor "${nxt.name}" deve ser o primeiro método da classe.`,
-                    vscode.DiagnosticSeverity.Warning
-                ));
-                continue;
-            }
-
             if (cur.prefixIdx > nxt.prefixIdx ||
                 (cur.prefixIdx === nxt.prefixIdx && cur.suffix > nxt.suffix)) {
                 const pos = document.positionAt(nxt.start);
@@ -222,7 +176,7 @@ function updateDiagnostics(document) {
 
                 diagnostics.push(new vscode.Diagnostic(
                     rng,
-                    `O método "${nxt.name}" precisa estar acima de "${cur.name}".`,
+                    `O método "${nxt.name}" precisa estar acima de "${cur.name}" dentro do bloco "${blockName}".`,
                     vscode.DiagnosticSeverity.Warning
                 ));
             }
@@ -233,3 +187,4 @@ function updateDiagnostics(document) {
 }
 
 module.exports = { activate, deactivate };
+

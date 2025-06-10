@@ -1,0 +1,27 @@
+{
+  "name": "unused-symbols",
+  "displayName": "RenanLacerda - Simbolos Não Utilizados",
+  "description": "Detecta variaveis e métodos que não estão sendo chamados.",
+  "version": "0.0.2",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "engines": { "vscode": "^1.60.0" },
+  "icon": "icon.png",
+  "activationEvents": [
+    "onLanguage:typescript",
+    "onLanguage:typescriptreact",
+    "onLanguage:javascript",
+    "onLanguage:javascriptreact",
+    "onLanguage:csharp"
+  ],
+  "main": "./extension.js",
+  "icon": "icon.png",
+  "categories": ["Linters"],
+  "contributes": {
+    "commands": [],
+    "languages": [],
+    "configuration": {}
+  }
+}

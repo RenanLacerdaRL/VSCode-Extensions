@@ -9,83 +9,73 @@ function activate(context) {
         if (!document) return;
 
         const supportedLanguages = ['typescript', 'typescriptreact', 'javascript', 'javascriptreact', 'csharp'];
-
         if (!supportedLanguages.includes(document.languageId)) {
             diagnosticsCollection.delete(document.uri);
             return;
         }
 
         const diagnostics = [];
-        const text = document.getText();
-        const lines = text.split('\n');
+        const lines = document.getText().split('\n');
 
-        const varRegex = {
-            csharp: /^\s*(?:var|[A-Za-z_]\w*(?:<[\w<>;, ]+>)?)(\[\])?\s+\w+/,
-            typescript: /^\s*(?:const|let|var)\s+\w+/i,
-            javascript: /^\s*(?:const|let|var)\s+\w+/i
+        const varStartRegex = {
+            typescript: /^\s*(const|let|var)\s+/,
+            javascript: /^\s*(const|let|var)\s+/,
+            csharp:    /^\s*(var|[A-Za-z_]\w*(<.*>)?(\[\])?)\s+\w+/
         };
 
-        const methodRegex = {
-            csharp: /^\s*(?:public|private|protected|internal)?\s*(?:static\s+)?(?:async\s+)?\s*\w[\w<>]*\s+\w+\s*\([^)]*\)\s*\{?\s*$/,
-            typescript: /^\s*(?:public|private|protected)?\s*(?:async\s+)?\s*\w+\s*\([^)]*\)\s*(?::\s*\w+)?\s*\{?\s*$/,
-            javascript: /^\s*(?:async\s+)?\s*(?:function\s*)?\w*\s*\([^)]*\)\s*\{?\s*$/
-        };
-
-        const langId = document.languageId;
-        const varPattern = varRegex[langId];
-        const methodPattern = methodRegex[langId];
-
-        let inMethod = false;
+        const langId = document.languageId.startsWith('typescript') ? 'typescript' :
+                      document.languageId.startsWith('javascript')  ? 'javascript'  : 'csharp';
+        const varPattern = varStartRegex[langId];
 
         for (let i = 0; i < lines.length - 1; i++) {
-            const rawLine = lines[i];
-            const line = rawLine.trim();
-            const nextLine = lines[i + 1].trim();
+            const line    = lines[i];
+            const trimmed = line.trim();
 
-            // Ignorar diretivas de pré-processador
-            if (line.startsWith('#')) continue;
+            // Em C#, ignora linhas não indentadas (fora de métodos)
+            if (langId === 'csharp' && line === trimmed) continue;
+            // Em C#, ignora assinaturas de método (linhas que terminam com '{' e contêm parênteses)
+            if (langId === 'csharp' && trimmed.endsWith('{') && trimmed.includes('(') && trimmed.includes(')')) continue;
 
-            if (
-                !inMethod &&
-                (
-                    (methodPattern && line.match(methodPattern)) ||
-                    line.startsWith('for') ||
-                    line.startsWith('foreach') ||
-                    line.startsWith('while') ||
-                    line.startsWith('if') ||
-                    line.startsWith('switch')
-                )
-            ) {
-                inMethod = true;
-                continue;
-            }
+            if (!varPattern.test(trimmed)) continue;
 
-            if (inMethod && line === '}') {
-                inMethod = false;
-                continue;
-            }
-
-            if (inMethod && varPattern && line.match(varPattern) && !rawLine.includes('=>')) {
-                const prevLine = lines[i - 1]?.trim() || '';
-                const isAfterControl = /^(return|if|else|do|while|for|switch|catch|try|throw|case|default)\b/.test(prevLine) || line.startsWith('case') || line.startsWith('default') || nextLine.startsWith('break');
-
-                if (isAfterControl) continue;
-
-                const nextIsVar = nextLine.match(varPattern);
-                const nextIsBlockEnd = nextLine === '}' || nextLine === '';
-                const nextIsComment = nextLine.startsWith('//') || nextLine.startsWith('/*');
-                const nextIsDirective = nextLine.startsWith('#');
-
-                if (!nextIsVar && !nextIsBlockEnd && !nextIsComment && !nextIsDirective) {
-                    const range = new vscode.Range(new vscode.Position(i, 0), new vscode.Position(i, rawLine.length));
-
-                    diagnostics.push(new vscode.Diagnostic(
-                        range,
-                        'Adicione uma linha em branco após declaração de variável local.',
-                        vscode.DiagnosticSeverity.Warning
-                    ));
+            // Procurar até encontrar o ponto e vírgula que encerra a declaração
+            let j = i;
+            let foundSemicolon = false;
+            while (j < lines.length) {
+                if (lines[j].trim().endsWith(';')) {
+                    foundSemicolon = true;
+                    break;
                 }
+                j++;
             }
+
+            if (!foundSemicolon || j >= lines.length - 1) continue;
+
+            // Se o ';' pertencer a um return, ignora este caso
+            const semicolonLine = lines[j].trim();
+            if (semicolonLine.startsWith('return')) {
+                i = j;
+                continue;
+            }
+
+            const nextLine = lines[j + 1].trim();
+            const isNextLineAnotherVar = varPattern.test(nextLine);
+            const isNextLineComment    = nextLine.startsWith('//') || nextLine.startsWith('/*');
+            const isNextLineReturn     = nextLine.startsWith('return');
+
+            if (nextLine !== '' && !isNextLineAnotherVar && !isNextLineComment && !isNextLineReturn) {
+                const range = new vscode.Range(
+                    new vscode.Position(i, 0),
+                    new vscode.Position(i, line.length)
+                );
+                diagnostics.push(new vscode.Diagnostic(
+                    range,
+                    'Adicione uma linha em branco após declaração de variável local.',
+                    vscode.DiagnosticSeverity.Warning
+                ));
+            }
+
+            i = j; // pular até a linha onde terminou a declaração
         }
 
         diagnosticsCollection.set(document.uri, diagnostics);
@@ -99,15 +89,17 @@ function activate(context) {
         vscode.window.onDidChangeActiveTextEditor(editor => {
             if (editor) updateDiagnostics(editor.document);
         }),
-        vscode.workspace.onDidChangeTextDocument(e => {
-            updateDiagnostics(e.document);
+        vscode.workspace.onDidChangeTextDocument(event => {
+            updateDiagnostics(event.document);
         }),
         diagnosticsCollection
     );
 }
 
 function deactivate() {
-    if (diagnosticsCollection) diagnosticsCollection.dispose();
+    if (diagnosticsCollection) {
+        diagnosticsCollection.dispose();
+    }
 }
 
 module.exports = {

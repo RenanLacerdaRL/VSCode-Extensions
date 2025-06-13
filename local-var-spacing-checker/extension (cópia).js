@@ -62,15 +62,8 @@ function activate(context) {
             const isNextLineAnotherVar = varPattern.test(nextLine);
             const isNextLineComment    = nextLine.startsWith('//') || nextLine.startsWith('/*');
             const isNextLineReturn     = nextLine.startsWith('return');
-            const isNextLineClosingBrace = nextLine === '}';
 
-            if (
-                nextLine !== '' &&
-                !isNextLineAnotherVar &&
-                !isNextLineComment &&
-                !isNextLineReturn &&
-                !isNextLineClosingBrace
-            ) {
+            if (nextLine !== '' && !isNextLineAnotherVar && !isNextLineComment && !isNextLineReturn) {
                 const range = new vscode.Range(
                     new vscode.Position(i, 0),
                     new vscode.Position(i, line.length)

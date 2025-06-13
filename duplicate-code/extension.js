@@ -34,6 +34,11 @@ function updateDiagnostics(document) {
         return;
     }
 
+    if (document.uri.fsPath.includes('node_modules')) {
+        diagnosticsCollection.delete(document.uri);
+        return;
+    }
+
     const diagnostics = [];
     const text = document.getText();
 
@@ -71,6 +76,7 @@ function updateDiagnostics(document) {
 
     diagnosticsCollection.set(document.uri, diagnostics);
 }
+
 
 module.exports = {
     activate,

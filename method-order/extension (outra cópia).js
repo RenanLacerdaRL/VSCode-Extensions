@@ -56,10 +56,6 @@ function updateDiagnostics(document) {
     const defRegex = isCS ? csMethodRegex : tsMethodRegex;
     while ((match = defRegex.exec(text)) !== null) {
         const name = isCS ? match[4] : match[2];
-
-        // Filtra palavras-chave de controle explicitamente
-        if (controlKeywords.includes(name)) continue;
-
         methods.push({ name, start: match.index });
     }
 

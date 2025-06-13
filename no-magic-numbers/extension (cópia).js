@@ -27,12 +27,15 @@ function deactivate() {
 }
 
 function updateDiagnostics(document) {
+    // Ignorar arquivos em node_modules
     if (document.uri.fsPath.includes('/node_modules/') || document.uri.fsPath.includes('\\node_modules\\')) {
         diagnosticsCollection.delete(document.uri);
         return;
     }
 
     const langs = ['typescript', 'typescriptreact', 'javascript', 'javascriptreact', 'csharp'];
+
+
     if (!langs.includes(document.languageId)) {
         diagnosticsCollection.delete(document.uri);
         return;
@@ -44,12 +47,13 @@ function updateDiagnostics(document) {
 
     const enumLines = new Set();
     let insideEnum = false;
-    let insideStringBlock = false;
+    let insideString = false;
 
-    // Pré-processar para ignorar enums e blocos de strings
+    // Pré-processar para ignorar enums e strings
     lines.forEach((line, index) => {
         const trimmed = line.trim();
 
+        // Verificar enums
         if (/^\s*(export\s+)?enum\s+\w+/.test(trimmed)) {
             insideEnum = true;
         }
@@ -60,70 +64,86 @@ function updateDiagnostics(document) {
             }
         }
 
-        const quoteCount = (line.match(/["']/g) || []).length;
-        if (quoteCount % 2 !== 0) {
-            insideStringBlock = !insideStringBlock;
+        // Verificar strings (simplificado - pode precisar de ajustes para casos complexos)
+        if (line.includes('"') || line.includes("'")) {
+            insideString = !insideString;
         }
-
-        if (insideStringBlock || line.includes('"') || line.includes("'")) {
-            enumLines.add(index);
+        if (insideString) {
+            enumLines.add(index); // Reutilizando o Set para marcar linhas com strings
         }
     });
 
-    const magicNumberRegex = /(?<![\w."'])-?\d+(\.\d+)?(?![\w."'])/g;
+    const magicNumberRegex = /(?<![\w."'])(-?\d+(\.\d+)?)(?![\w."'])/g;
     let match;
 
+    // Função para verificar se a posição está dentro de comentário
     function isInsideComment(position) {
+        // Obter o texto até essa posição
         const offset = document.offsetAt(position);
-        const textBefore = text.slice(0, offset);
 
+        // Verificar comentários de bloco /* ... */
+        const textBefore = text.slice(0, offset);
         const openBlockComment = textBefore.lastIndexOf('/*');
         const closeBlockComment = textBefore.lastIndexOf('*/');
-        if (openBlockComment > closeBlockComment) return true;
+        if (openBlockComment > closeBlockComment) {
+            return true;
+        }
 
+        // Verificar comentário de linha //
         const lineText = document.lineAt(position.line).text;
         const commentIndex = lineText.indexOf('//');
-        return commentIndex !== -1 && position.character >= commentIndex;
+        if (commentIndex !== -1 && position.character >= commentIndex) {
+            return true;
+        }
+
+        return false;
     }
 
     while ((match = magicNumberRegex.exec(text)) !== null) {
-        const numStr = match[0];
+        const numStr = match[1];
         const numValue = Number(numStr);
 
         if ([0, 1, -1].includes(numValue)) {
             continue;
         }
 
-        const startIndex = match.index;
+        const startIndex = match.index + match[0].indexOf(numStr);
         const position = document.positionAt(startIndex);
         const lineIndex = position.line;
         const lineText = document.lineAt(lineIndex).text.trim();
 
         // Ignorar enums e strings
-        if (enumLines.has(lineIndex)) continue;
+        if (enumLines.has(lineIndex)) {
+            continue;
+        }
 
         // Ignorar arrays literais
         const arrayLiteralPattern = /=\s*\[.*\]/;
-        if (arrayLiteralPattern.test(lineText)) continue;
+        if (arrayLiteralPattern.test(lineText)) {
+            continue;
+        }
 
-        // Ignorar declarações literais simples em JS/TS
+        // Ignorar declarações explícitas em TS/JS (incluindo strings)
         if (document.languageId.startsWith('typescript') || document.languageId.startsWith('javascript')) {
-            const tsDeclPattern = /^\s*(const|let|var)\s+\w+(\s*:\s*[\w<>\[\]]+)?\s*=\s*-?\d+(\.\d+)?\s*;?$/;
-            if (tsDeclPattern.test(lineText.trim())) continue;
+            const tsDeclPattern = /^(const|let|var)\s+\w+(\s*:\s*[\w\<\>\[\]]+)?\s*=\s*(["'].*["']|[\w.]+)/;
+            if (tsDeclPattern.test(lineText)) {
+                continue;
+            }
         }
 
-        // Ignorar declarações literais simples em C#
+        // Ignorar declarações explícitas em C#
         if (document.languageId === 'csharp') {
-            const csDeclPattern = /^\s*(?:public|private|protected|internal)?\s*(?:const\s+)?\w+\s+\w+\s*=\s*-?\d+(\.\d+)?\s*;?$/;
-            if (csDeclPattern.test(lineText.trim())) continue;
+            const csDeclPattern = /^\s*(?:public|private|protected|internal)?\s*(?:const\s+)?\w+\s+\w+\s*=\s*(["'].*["']|[\w.]+)/;
+
+            if (csDeclPattern.test(lineText)) {
+                continue;
+            }
         }
 
-        // Ignorar propriedades de objetos (ex: fontSize: 10)
-        const propertyPattern = /^\s*\w+\s*:\s*-?\d+(\.\d+)?\s*,?\s*$/;
-        if (propertyPattern.test(lineText)) continue;
-
-        // Ignorar dentro de comentários
-        if (isInsideComment(position)) continue;
+        // **Nova verificação para ignorar números dentro de comentários**
+        if (isInsideComment(position)) {
+            continue;
+        }
 
         const startPos = position;
         const endPos = document.positionAt(startIndex + numStr.length);

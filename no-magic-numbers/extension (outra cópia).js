@@ -99,10 +99,6 @@ function updateDiagnostics(document) {
         const lineIndex = position.line;
         const lineText = document.lineAt(lineIndex).text.trim();
 
-        // Ignorar linhas que sejam exclusivamente literais de regex (ex: const regex = /^…$/;)
-        const regexLiteralPattern = /=\s*\/.*\/[gimsuy]*\s*;?$/;
-        if (regexLiteralPattern.test(lineText)) continue;
-
         // Ignorar enums e strings
         if (enumLines.has(lineIndex)) continue;
 

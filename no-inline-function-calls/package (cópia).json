@@ -32,12 +32,6 @@
           "type": "boolean",
           "default": true,
           "description": "Considerar parâmetros de métodos ao filtrar chamadas de função aninhadas."
-        },
-        "inlineFunctionCall.ignoreMethods": {
-          "type": "array",
-          "items": { "type": "string" },
-          "default": ["FormControl"],
-          "description": "Lista de métodos (nomes) cujas chamadas devem ser ignoradas"
         }
       }
     }

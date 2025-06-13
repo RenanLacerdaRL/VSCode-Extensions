@@ -7,7 +7,9 @@
     "type": "git",
     "url": ""
   },
-  "engines": { "vscode": "^1.60.0" },
+  "engines": {
+    "vscode": "^1.60.0"
+  },
   "icon": "icon.png",
   "activationEvents": [
     "onLanguage:typescript",
@@ -17,25 +19,130 @@
     "onLanguage:csharp"
   ],
   "main": "./extension.js",
-"contributes": {
-  "configuration": {
-    "type": "object",
-    "title": "Method Order Configuration",
-    "properties": {
-      "methodOrder.prefixOrder": {
-        "type": "array",
-        "items": {
-          "type": "string"
+  "contributes": {
+    "configuration": {
+      "type": "object",
+      "title": "Method Order Configuration",
+      "properties": {
+        "methodOrder.prefixOrder": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "constructor",
+            "ngOnInit",
+            "Awake",
+            "Create",
+            "Setup",
+            "Patch",
+            "Initialize",
+            "Start",
+
+            "Update",
+            "BaseTick",
+            "Tick",
+
+            "Load",
+            "GetTitle",
+            "GetDescription",
+            "Get",
+            "Current",
+            "Count",
+            "Set",
+            "Edit",
+            "Post",
+            "Put",
+            "Copy",
+            "Save",
+            "Download",
+
+            "Add",
+            "Join",
+            "Concat",
+            "Trim",
+            "Padding",
+            "Subtract",
+            "Increase",
+            "Decrease",
+            "Previous",
+            "Next",
+            "Limit",
+            "Min",
+            "Max",
+
+            "IsUp",
+            "IsDown",
+            "IsLeft",
+            "IsRight",
+            "IsConfirm",
+            "IsCancel",
+            "Is",
+            "Has",
+            "Can",
+            "can",
+            "Exists",
+            "Check",
+            "Verify",
+
+            "Approve",
+            "Deapprove",
+            "Valid",
+            "Invalid",
+
+            "Select",
+            "Sort",
+            "Toggle",
+            "Deselect",
+
+            "Success",
+            "Notification",
+            "Information",
+            "Warning",
+            "Error",
+            "Dismiss",
+
+            "Search",
+            "Navigate",
+            "To",
+            "Refresh",
+
+            "Open",
+            "Show",
+            "Close",
+            "Hide",
+            "Enable",
+            "Disable",
+
+            "Remove",
+            "Reset",
+            "Delete",
+            "Destroy",
+
+            "Click",
+            "On",
+            "on",
+            "intercept",
+
+            "InvokeIn",
+            "InvokeOut",
+            "InvokeDone",
+            "Invoke",
+            "SubscribeToIn",
+            "SubscribeToOut",
+            "SubscribeToDone",
+            "SubscribeTo",
+            "Subscribe",
+            "__ANY__"
+          ],
+          "description": "Lista ordenada dos prefixos de métodos. Use '__ANY__' para indicar qualquer outro prefixo."
         },
-        "default": [
-          "constructor", "ngOnInit", "Awake", "Create", "Start", "Setup", "Patch", "Initialize", "Tick",
-          "Get", "Load", "Set", "Post", "Save", "Put", "Copy", "Update", "Is", "Exists", "Approve", "Valid", "Invalid",
-          "__ANY__", "Increase", "Decrease", "Min", "Max", "Enable", "Disable", "Show", "Hide", "Success", "Notification", "Information",
-          "Warning", "Error", "Dismiss", "Remove", "Close", "Delete", "Destroy", "Reset", "On", "Subscriber"
-        ],
-        "description": "Lista ordenada dos prefixos de métodos para organizar métodos não chamados. Use '__ANY__' para indicar qualquer outro prefixo."
+        "methodOrder.enforceCallOrder": {
+          "type": "boolean",
+          "default": true,
+          "description": "Métodos chamados devem vir logo abaixo de quem os chama."
+        }
       }
     }
   }
-}
 }

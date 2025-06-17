@@ -1,0 +1,32 @@
+{
+  "name": "project-checker",
+  "displayName": "RenanLacerda - Símbolos Não Utilizados",
+  "description": "Detecta variáveis e métodos que não estão sendo chamados.",
+  "version": "0.0.2",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "icon": "icon.png",
+  "activationEvents": [
+    "onCommand:unusedMethods.checkCurrentFile",
+    "onLanguage:typescript",
+    "onLanguage:typescriptreact",
+    "onLanguage:javascript",
+    "onLanguage:javascriptreact",
+    "onLanguage:csharp"
+  ],
+  "main": "./extension.js",
+  "categories": ["Linters"],
+  "contributes": {
+    "commands": [
+      {
+        "command": "unusedMethods.checkCurrentFile",
+        "title": "Verificar métodos não utilizados no arquivo atual"
+      }
+    ]
+  }
+}

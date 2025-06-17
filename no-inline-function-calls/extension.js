@@ -31,7 +31,7 @@ function updateDiagnostics(document) {
         return;
     }
 
-    // 🚩 Configurações
+    // Configurações
     const config = vscode.workspace.getConfiguration('inlineFunctionCall');
     const considerLocals = config.get('considerLocalVariables', true);
     const considerParams = config.get('considerParameters', true);
@@ -77,7 +77,9 @@ function updateDiagnostics(document) {
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         if (controlStructRegex.test(line) || line.includes('=>')) continue;
-        const codeLine = line.replace(/"([^"\\]|\\.)*"/g, str => ' '.repeat(str.length));
+const codeLine = line
+    .replace(/(['"`])(?:\\[\s\S]|(?!\1)[^\\])*\1/g, str => ' '.repeat(str.length))  // Apaga strings
+    .replace(/\/\/.*$/g, m => ' '.repeat(m.length));
 
         let match;
         while ((match = nestedCallRegex.exec(codeLine)) !== null) {

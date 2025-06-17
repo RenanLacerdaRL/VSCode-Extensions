@@ -63,8 +63,9 @@ function updateDiagnostics(document) {
             }
         }
 
-        // 2) Campos de classe tipados: por exemplo, private popupAction: PoPopupAction[] = [];
-        const classFieldPattern = /^\s*(?:public|protected|private)?\s*(?:readonly\s*)?(\w+)\s*:\s*[\w<>\[\]]+\[\]\s*=/gm;
+        // 2) Campos de classe tipados: por exemplo, private popupAction: PoPopupAction[];
+const classFieldPattern = /^\s*(?:public|protected|private)?\s*(?:readonly\s*)?(\w+)\s*:\s*[\w<>\[\]]+\[\]\s*(?:[=;]|$)/gm;
+
         while ((match = classFieldPattern.exec(text)) !== null) {
             const varName = match[1];
             if (!varName.endsWith('s')) {

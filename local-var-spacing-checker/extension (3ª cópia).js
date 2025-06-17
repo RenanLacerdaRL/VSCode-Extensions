@@ -55,7 +55,7 @@ function activate(context) {
 
             const isNextLineAnotherVar = varPattern.test(nextLine);
             const isNextLineComment = nextLine.startsWith('//') || nextLine.startsWith('/*');
-//             const isNextLineReturn = nextLine.startsWith('return');
+            const isNextLineReturn = nextLine.startsWith('return');
             const isNextLineClosingBrace = nextLine === '}';
 
             // NOVO: Ignorar se estiver dentro de um bloco de case (linha anterior termina com ':' ou começa com 'case')
@@ -75,7 +75,7 @@ function activate(context) {
                 nextLine !== '' &&
                 !isNextLineAnotherVar &&
                 !isNextLineComment &&
-//                 !isNextLineReturn &&
+                !isNextLineReturn &&
                 !isNextLineClosingBrace &&
                 !isInsideCaseBlock
             ) {

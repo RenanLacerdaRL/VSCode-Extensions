@@ -25,13 +25,12 @@ function deactivate() {
 }
 
 function updateDiagnostics(document) {
-    const supportedLangs = ['typescript','typescriptreact','javascript','javascriptreact','csharp'];
+    const supportedLangs = ['typescript', 'typescriptreact', 'javascript', 'javascriptreact', 'csharp'];
     if (!supportedLangs.includes(document.languageId)) {
         diagnosticsCollection.delete(document.uri);
         return;
     }
 
-    // Configurações
     const config = vscode.workspace.getConfiguration('inlineFunctionCall');
     const considerLocals = config.get('considerLocalVariables', true);
     const considerParams = config.get('considerParameters', true);
@@ -40,7 +39,6 @@ function updateDiagnostics(document) {
     const lines = document.getText().split('\n');
     const diagnostics = [];
 
-    // coletar métodos importados para também ignorar
     const importedNames = new Set();
     const importRegex = /^\s*import\s+{([^}]+)}\s+from\s+['"][^'"]+['"]/;
     for (const line of lines) {
@@ -52,7 +50,6 @@ function updateDiagnostics(document) {
         }
     }
 
-    // coletar nomes de variáveis locais e parâmetros de métodos
     const localNames = new Set();
     const paramNames = new Set();
     const varDeclRegex = /^\s*(?:const|let|var)\s+([A-Za-z_$]\w*)/;
@@ -77,9 +74,11 @@ function updateDiagnostics(document) {
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         if (controlStructRegex.test(line) || line.includes('=>')) continue;
-const codeLine = line
-    .replace(/(['"`])(?:\\[\s\S]|(?!\1)[^\\])*\1/g, str => ' '.repeat(str.length))  // Apaga strings
-    .replace(/\/\/.*$/g, m => ' '.repeat(m.length));
+
+        const codeLine = line
+            .replace(/(['"`])(?:\\[\s\S]|(?!\1)[^\\])*\1/g, str => ' '.repeat(str.length)) // ignora strings
+            .replace(/\/(?![/*])(?:\\.|[^/\\])+\/[gimsuy]*/g, m => ' '.repeat(m.length))     // ignora regex
+            .replace(/\/\/.*$/g, m => ' '.repeat(m.length)); // ignora comentários de linha
 
         let match;
         while ((match = nestedCallRegex.exec(codeLine)) !== null) {
@@ -87,7 +86,7 @@ const codeLine = line
             const openParens = (snippet.match(/\(/g) || []).length;
             let shouldIgnore = false;
 
-            // 1) ignorar se for método listado em ignoreMethods (inclui 'new')
+            // 1) Ignorar se for método da lista ignoreMethods (inclui 'new')
             for (const name of ignoreMethods) {
                 const re = new RegExp(`^(?:new\\s+)?${name}\\s*\\(`);
                 if (re.test(snippet)) {
@@ -97,7 +96,7 @@ const codeLine = line
             }
             if (shouldIgnore) continue;
 
-            // 2) ignorar se vier de variável local ou parâmetro conforme config
+            // 2) Ignorar se vier de variável local
             if (considerLocals) {
                 for (const name of localNames) {
                     if (new RegExp(`\\b${name}\\s*\\.`, 'g').test(snippet)) {
@@ -116,8 +115,7 @@ const codeLine = line
             }
             if (shouldIgnore) continue;
 
-            // 3) ignorar chamadas diretas de import **somente se não for nested**
-            //    ou seja, se houver apenas 1 parêntese
+            // 3) Ignorar chamadas diretas de imports (se só tiver um parêntese)
             if (openParens === 1) {
                 for (const name of importedNames) {
                     const re = new RegExp(`^(?:new\\s+)?${name}\\s*\\(`);
@@ -129,7 +127,6 @@ const codeLine = line
                 if (shouldIgnore) continue;
             }
 
-            // agora, se for nested (openParens >= 2), avisamos
             if (openParens >= 2) {
                 diagnostics.push(createDiag(
                     i,

@@ -4,7 +4,7 @@ let statusBarItem;
 
 function activate(context) {
   statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-  statusBarItem.text = '$(search) Atualizar Diagnósticos';
+  statusBarItem.text = '$(search) Verificação';
   statusBarItem.tooltip = 'Clique para forçar reanálise dos arquivos e atualizar a aba Problems';
   statusBarItem.command = 'projectChecker.refreshDiagnostics';
 
@@ -12,7 +12,6 @@ function activate(context) {
 
   updateStatusBar();
 
-  // Atualiza o botão se mudar o workspace (abrir ou fechar pasta)
   vscode.workspace.onDidChangeWorkspaceFolders(() => {
     updateStatusBar();
   }, null, context.subscriptions);
@@ -39,6 +38,13 @@ function deactivate() {
 
 async function openCloseFile(uri) {
   try {
+    const alreadyOpen = vscode.workspace.textDocuments.some(doc => doc.uri.toString() === uri.toString());
+
+    if (alreadyOpen) {
+      console.warn('Arquivo já estava aberto, não será fechado:', uri.fsPath);
+      return;
+    }
+
     const doc = await vscode.workspace.openTextDocument(uri);
     await vscode.window.showTextDocument(doc, { preview: true, preserveFocus: true });
     await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
@@ -52,6 +58,9 @@ async function refreshDiagnosticsForAllFiles() {
     vscode.window.showInformationMessage('Abra uma pasta de projeto para fazer a verificação.');
     return;
   }
+
+  // Limpar a aba Problems
+  vscode.languages.getDiagnostics().forEach(([uri]) => vscode.languages.createDiagnosticCollection().delete(uri));
 
   await vscode.window.withProgress({
     location: vscode.ProgressLocation.Notification,

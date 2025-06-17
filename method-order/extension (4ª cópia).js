@@ -41,8 +41,7 @@ function updateDiagnostics(document) {
 
     const config = vscode.workspace.getConfiguration('methodOrder');
     const prefixOrders = config.get('prefixOrder') || [];
-    const enforceCallOrder = config.get('enforceCallOrder') !== false;
-    const alphabeticalSuffixes = config.get('alphabeticalSuffixes') || [];
+    const enforceCallOrder = config.get('enforceCallOrder') !== false; // padrão: true
 
     const text = document.getText();
     const diagnostics = [];
@@ -58,25 +57,32 @@ function updateDiagnostics(document) {
     const defRegex = isCS ? csMethodRegex : tsMethodRegex;
     while ((match = defRegex.exec(text)) !== null) {
         const name = isCS ? match[4] : match[2];
+
+        // Filtra palavras-chave de controle explicitamente
         if (controlKeywords.includes(name)) continue;
+
         methods.push({ name, start: match.index });
     }
 
+    // Encontrar o nome da classe (apenas para C#)
     let className = '';
-    const classMatch = text.match(/class\s+(\w+)/);
-    if (classMatch) className = classMatch[1];
+    if (isCS) {
+        const classMatch = text.match(/class\s+(\w+)/);
+        if (classMatch) {
+            className = classMatch[1];
+        }
+    }
 
-    const classNameEndsWithAlphabeticalSuffix = alphabeticalSuffixes.some(suffix =>
-        className.endsWith(suffix)
-    );
-
+    // Ordenar métodos: construtor primeiro (se existir), depois os demais
     const definedOrder = methods.map(m => m.name);
     if (className && definedOrder.includes(className)) {
         const constructorIndex = definedOrder.indexOf(className);
         if (constructorIndex > 0) {
+            // Criar diagnóstico para o construtor não ser o primeiro método
             const cm = methods.find(x => x.name === className);
             const pos = document.positionAt(cm.start);
             const range = new vscode.Range(pos, pos.translate(0, className.length));
+
             diagnostics.push(new vscode.Diagnostic(
                 range,
                 `O construtor "${className}" deve ser o primeiro método da classe.`,
@@ -92,6 +98,7 @@ function updateDiagnostics(document) {
         const m = methods[i];
         const bodyStart = text.indexOf('{', m.start);
         let braceCount = 1, j = bodyStart + 1;
+
         while (j < text.length && braceCount > 0) {
             if (text[j] === '{') braceCount++;
             else if (text[j] === '}') braceCount--;
@@ -101,9 +108,9 @@ function updateDiagnostics(document) {
 
         const calls = [];
         const callRegex = /(?:this\.|(?<![\.\w]))(\w+)\s*\(/g;
-        let cm2;
-        while ((cm2 = callRegex.exec(body)) !== null) {
-            const callee = cm2[1];
+        let cm;
+        while ((cm = callRegex.exec(body)) !== null) {
+            const callee = cm[1];
             if (definedOrder.includes(callee) && callee !== m.name) {
                 if (!calls.includes(callee)) {
                     calls.push(callee);
@@ -120,14 +127,20 @@ function updateDiagnostics(document) {
     const lines = text.split('\n');
     let currentBlock = '__DEFAULT__';
     let blockMap = {};
+    let lastLineWasEmpty = false;
 
     for (let i = 0; i < methods.length; i++) {
         const m = methods[i];
         const lineNumber = text.substring(0, m.start).split('\n').length - 1;
+
+        // Verifica se há linhas em branco antes do método
         let hasEmptyLineBefore = false;
         for (let l = lineNumber - 1; l >= 0; l--) {
             const line = lines[l].trim();
-            if (line === '') { hasEmptyLineBefore = true; continue; }
+            if (line === '') {
+                hasEmptyLineBefore = true;
+                continue;
+            }
             if (line.startsWith('//')) {
                 currentBlock = line.replace('//', '').trim();
                 break;
@@ -138,26 +151,31 @@ function updateDiagnostics(document) {
                 break;
             }
         }
+
         if (!blocks[currentBlock]) blocks[currentBlock] = [];
-        blocks[currentBlock].push(m);
+        blocks[currentBlock].push(methods[i]);
         blockMap[m.name] = currentBlock;
     }
 
-    if (enforceCallOrder && !classNameEndsWithAlphabeticalSuffix) {
+    if (enforceCallOrder) {
         const warned = new Set();
         for (const [caller, calls] of callMap.entries()) {
             if (!calls.length) continue;
             const callerIdx = definedOrder.indexOf(caller);
+
             for (let k = 0; k < calls.length; k++) {
                 const callee = calls[k];
                 if (firstCaller[callee] !== callerIdx) continue;
                 if (warned.has(callee)) continue;
+
                 const expected = callee;
                 const actual = definedOrder[callerIdx + 1 + k];
+
                 if (actual !== expected) {
-                    const cm3 = methods.find(x => x.name === expected);
-                    const pos = document.positionAt(cm3.start);
+                    const cm = methods.find(x => x.name === expected);
+                    const pos = document.positionAt(cm.start);
                     const range = new vscode.Range(pos, pos.translate(0, expected.length));
+
                     diagnostics.push(new vscode.Diagnostic(
                         range,
                         `O método "${expected}" precisa estar abaixo de "${caller}".`,
@@ -177,53 +195,38 @@ function updateDiagnostics(document) {
 
         const withIdx = uncalled.map(x => {
             if (isCS && x.name === className) return { ...x, prefixIdx: -1, suffix: x.name.toLowerCase() };
+
             let p = prefixOrders.findIndex(pref => x.name.startsWith(pref));
             if (p === -1) p = anyIdx;
             return { ...x, prefixIdx: p, suffix: x.name.toLowerCase() };
         });
 
-        // Enforce ordering
         for (let i = 0; i < withIdx.length - 1; i++) {
             const cur = withIdx[i], nxt = withIdx[i + 1];
-            if (isCS && (cur.name === className || nxt.name === className)) continue;
-            if (classNameEndsWithAlphabeticalSuffix) {
-                // Alphabetical enforcement
-                if (cur.suffix > nxt.suffix) {
-                    const pos = document.positionAt(nxt.start);
-                    const rng = new vscode.Range(pos, pos.translate(0, nxt.name.length));
-                    diagnostics.push(new vscode.Diagnostic(
-                        rng,
-                        `O método "${nxt.name}" precisa estar acima de "${cur.name}" (ordem alfabética).`,
-                        vscode.DiagnosticSeverity.Warning
-                    ));
-                }
-            } else {
-                // Prefix-based enforcement
-                if (cur.prefixIdx > nxt.prefixIdx ||
-                    (cur.prefixIdx === nxt.prefixIdx && cur.suffix > nxt.suffix)) {
-                    const pos = document.positionAt(nxt.start);
-                    const rng = new vscode.Range(pos, pos.translate(0, nxt.name.length));
-                    diagnostics.push(new vscode.Diagnostic(
-                        rng,
-                        `O método "${nxt.name}" precisa estar acima de "${cur.name}".`,
-                        vscode.DiagnosticSeverity.Warning
-                    ));
-                }
-            }
-        }
 
-        // Novo: marcar prefixos desconhecidos apenas para prefix-based
-        if (!classNameEndsWithAlphabeticalSuffix) {
-            for (const m of withIdx) {
-                if (m.prefixIdx === -1 && !isCS) {
-                    const pos = document.positionAt(m.start);
-                    const range = new vscode.Range(pos, pos.translate(0, m.name.length));
-                    diagnostics.push(new vscode.Diagnostic(
-                        range,
-                        `Prefixo desconhecido para o método "${m.name}".`,
-                        vscode.DiagnosticSeverity.Information
-                    ));
-                }
+            if (isCS && cur.name === className) continue;
+            if (isCS && nxt.name === className) {
+                const pos = document.positionAt(nxt.start);
+                const rng = new vscode.Range(pos, pos.translate(0, nxt.name.length));
+
+                diagnostics.push(new vscode.Diagnostic(
+                    rng,
+                    `O construtor "${nxt.name}" deve ser o primeiro método da classe.`,
+                    vscode.DiagnosticSeverity.Warning
+                ));
+                continue;
+            }
+
+            if (cur.prefixIdx > nxt.prefixIdx ||
+                (cur.prefixIdx === nxt.prefixIdx && cur.suffix > nxt.suffix)) {
+                const pos = document.positionAt(nxt.start);
+                const rng = new vscode.Range(pos, pos.translate(0, nxt.name.length));
+
+                diagnostics.push(new vscode.Diagnostic(
+                    rng,
+                    `O método "${nxt.name}" precisa estar acima de "${cur.name}".`,
+                    vscode.DiagnosticSeverity.Warning
+                ));
             }
         }
     }

@@ -20,5 +20,19 @@
     "onLanguage:csharp"
   ],
   "main": "./extension.js",
-  "contributes": {}
+"contributes": {
+  "configuration": {
+    "title": "No Magic Numbers",
+    "properties": {
+      "noMagicNumbers.ignoreConstructors": {
+        "type": "array",
+        "description": "Lista de nomes de classes cujos construtores devem ser ignorados na detecção de números mágicos. Exemplo: ['NumberLimitsClass', 'OtherClass']",
+        "items": {
+          "type": "string"
+        },
+        "default": []
+      }
+    }
+  }
+}
 }

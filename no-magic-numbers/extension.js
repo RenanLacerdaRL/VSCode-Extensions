@@ -38,6 +38,9 @@ function updateDiagnostics(document) {
         return;
     }
 
+    const config = vscode.workspace.getConfiguration('noMagicNumbers');
+    const ignoreConstructors = config.get('ignoreConstructors') || [];
+
     const diagnostics = [];
     const text = document.getText();
     const lines = text.split('\n');
@@ -45,11 +48,13 @@ function updateDiagnostics(document) {
     const enumLines = new Set();
     let insideEnum = false;
     let insideStringBlock = false;
+    let insideTemplateBlock = false;
 
-    // Pré-processar para ignorar enums e blocos de strings
+    // Pré-processar para ignorar enums, strings e template literals
     lines.forEach((line, index) => {
         const trimmed = line.trim();
 
+        // enum blocks
         if (/^\s*(export\s+)?enum\s+\w+/.test(trimmed)) {
             insideEnum = true;
         }
@@ -60,17 +65,26 @@ function updateDiagnostics(document) {
             }
         }
 
+        // string blocks (' or ")
         const quoteCount = (line.match(/["']/g) || []).length;
         if (quoteCount % 2 !== 0) {
             insideStringBlock = !insideStringBlock;
         }
+        if (insideStringBlock || /['"]/.test(line)) {
+            enumLines.add(index);
+        }
 
-        if (insideStringBlock || line.includes('"') || line.includes("'")) {
+        // template literal blocks (`)
+        const backtickCount = (line.match(/`/g) || []).length;
+        if (backtickCount % 2 !== 0) {
+            insideTemplateBlock = !insideTemplateBlock;
+        }
+        if (insideTemplateBlock || /`/.test(line)) {
             enumLines.add(index);
         }
     });
 
-    const magicNumberRegex = /(?<![\w."'])-?\d+(\.\d+)?(?![\w."'])/g;
+    const magicNumberRegex = /(?<![\w.\"'])-?\d+(\.\d+)?(?![\w.\"'])/g;
     let match;
 
     function isInsideComment(position) {
@@ -97,43 +111,48 @@ function updateDiagnostics(document) {
         const startIndex = match.index;
         const position = document.positionAt(startIndex);
         const lineIndex = position.line;
+
+        // Ignorar linhas de enum, strings e template literals
+        if (enumLines.has(lineIndex)) continue;
+
         const lineText = document.lineAt(lineIndex).text.trim();
 
-        // Ignorar linhas que sejam exclusivamente literais de regex (ex: const regex = /^…$/;)
+        // Ignorar linhas que contenham instâncias de construtores a ignorar
+        let shouldIgnore = false;
+        for (const className of ignoreConstructors) {
+            const constructorPattern = new RegExp(`new\\s+${className}\\s*\\(|\\b${className}\\s*\\(`);
+            if (constructorPattern.test(lineText)) {
+                shouldIgnore = true;
+                break;
+            }
+        }
+        if (shouldIgnore) continue;
+
         const regexLiteralPattern = /=\s*\/.*\/[gimsuy]*\s*;?$/;
         if (regexLiteralPattern.test(lineText)) continue;
 
-        // Ignorar enums e strings
-        if (enumLines.has(lineIndex)) continue;
-
-        // Ignorar arrays literais
         const arrayLiteralPattern = /=\s*\[.*\]/;
         if (arrayLiteralPattern.test(lineText)) continue;
 
-        // Ignorar declarações literais simples em JS/TS
         if (document.languageId.startsWith('typescript') || document.languageId.startsWith('javascript')) {
             const tsDeclPattern = /^\s*(const|let|var)\s+\w+(\s*:\s*[\w<>\[\]]+)?\s*=\s*-?\d+(\.\d+)?\s*;?$/;
-            if (tsDeclPattern.test(lineText.trim())) continue;
+            if (tsDeclPattern.test(lineText)) continue;
 
             const tsReadonlyPattern = /^\s*(public\s+|private\s+|protected\s+)?static\s+readonly\s+\w+\s*=\s*-?\d+(\.\d+)?\s*;?$/;
-            if (tsReadonlyPattern.test(lineText.trim())) continue;
+            if (tsReadonlyPattern.test(lineText)) continue;
 
-            // Ignorar chaves numéricas dentro de objetos (ex: responsive: { 400: { ... } })
             const objectKeyPattern = /^\s*-?\d+(\.\d+)?\s*:\s*{\s*$/;
-            if (objectKeyPattern.test(lineText.trim())) continue;
+            if (objectKeyPattern.test(lineText)) continue;
         }
 
-        // Ignorar declarações literais simples em C#
         if (document.languageId === 'csharp') {
             const csDeclPattern = /^\s*(?:public|private|protected|internal)?\s*(?:const\s+)?\w+\s+\w+\s*=\s*-?\d+(\.\d+)?\s*;?$/;
-            if (csDeclPattern.test(lineText.trim())) continue;
+            if (csDeclPattern.test(lineText)) continue;
         }
 
-        // Ignorar propriedades de objetos (ex: fontSize: 10)
         const propertyPattern = /^\s*\w+\s*:\s*-?\d+(\.\d+)?\s*,?\s*$/;
         if (propertyPattern.test(lineText)) continue;
 
-        // Ignorar dentro de comentários
         if (isInsideComment(position)) continue;
 
         const startPos = position;

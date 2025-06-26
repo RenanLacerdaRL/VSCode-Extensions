@@ -34,22 +34,18 @@ function updateDiagnostics(document) {
         return;
     }
 
-    // Carrega lista de palavras para ignorar das configurações do usuário
-    const config = vscode.workspace.getConfiguration('arrayNamePlural');
-    const ignoreList = config.get('ignoreWords', []);
-
     const diagnostics = [];
     const text = document.getText();
 
     // helper interno para adicionar diagnostic
-    function addDiagnostic(varName, idx, message = null) {
+    function addDiagnostic(varName, idx) {
         const startPos = document.positionAt(idx);
         const endPos = document.positionAt(idx + varName.length);
         const range = new vscode.Range(startPos, endPos);
 
         diagnostics.push(new vscode.Diagnostic(
             range,
-            message || `Variável "${varName}" é um array e deve ter nome no plural (terminar com "s").`,
+            `Variável "${varName}" é um array e deve ter nome no plural (terminar com "s").`,
             vscode.DiagnosticSeverity.Warning
         ));
     }
@@ -68,61 +64,13 @@ function updateDiagnostics(document) {
         }
 
         // 2) Campos de classe tipados: por exemplo, private popupAction: PoPopupAction[];
-        const classFieldPattern = /^\s*(?:public|protected|private)?\s*(?:readonly\s*)?(\w+)\s*:\s*[\w<>\[\]]+\[\]\s*(?:[=;]|$)/gm;
+const classFieldPattern = /^\s*(?:public|protected|private)?\s*(?:readonly\s*)?(\w+)\s*:\s*[\w<>\[\]]+\[\]\s*(?:[=;]|$)/gm;
 
         while ((match = classFieldPattern.exec(text)) !== null) {
             const varName = match[1];
             if (!varName.endsWith('s')) {
                 const idx = match.index + match[0].indexOf(varName);
                 addDiagnostic(varName, idx);
-            }
-        }
-
-        // 3) Verifica se o nome da variável tem relação com a chamada
-        const usagePattern = /^\s*(?:const|let|var)\s+(\w+)\s*=\s*(?:await\s+)?([^;\n]+)/gm;
-        while ((match = usagePattern.exec(text)) !== null) {
-            const varName = match[1];
-            const expression = match[2].trim();
-
-            // Ignorar literais simples (números, strings, booleanos)
-            if (/^(?:\d+(?:\.\d+)?|'.*'|".*"|true|false)$/.test(expression)) {
-                continue;
-            }
-
-            // Ignorar se expressão ou variável contiver palavra da lista de ignorados
-            const lowerExpr = expression.toLowerCase();
-            const lowerVar = varName.toLowerCase();
-            if (ignoreList.some(w => {
-                const lw = w.toLowerCase();
-                return lowerExpr.includes(lw) || lowerVar.includes(lw);
-            })) {
-                continue;
-            }
-
-            // separa nome da variável em partes (camelCase, underscore)
-            const varParts = varName
-                .split(/(?=[A-Z])|_/)
-                .map(p => p.toLowerCase())
-                .filter(Boolean);
-
-            // limpa e separa expressão em palavras-chave
-            const exprClean = expression.replace(/\bawait\b/g, '').trim();
-            const exprParts = exprClean
-                .split(/[^a-zA-Z0-9]+/)
-                .map(p => p.toLowerCase())
-                .filter(Boolean);
-
-            const hasRelation = varParts.some(vp =>
-                exprParts.some(ep => ep.includes(vp) || vp.includes(ep))
-            );
-
-            if (!hasRelation) {
-                const idx = match.index + match[0].indexOf(varName);
-                addDiagnostic(
-                    varName,
-                    idx,
-                    `A variável "${varName}" não tem relação aparente com a expressão usada na atribuição.`
-                );
             }
         }
 
@@ -145,6 +93,7 @@ function updateDiagnostics(document) {
 
                 if (!varName.endsWith('s')) {
                     const idx = m.index + m[0].indexOf(varName);
+
                     addDiagnostic(varName, idx);
                 }
             }

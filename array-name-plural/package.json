@@ -20,5 +20,19 @@
     "onLanguage:csharp"
   ],
   "main": "./extension.js",
-  "contributes": {}
+"contributes": {
+    "configuration": {
+      "title": "Array Name Plural",
+      "properties": {
+        "arrayNamePlural.ignoreWords": {
+          "type": "array",
+          "description": "Lista de palavras que, se encontradas no nome da variável ou expressão, farão o plugin ignorar o diagnóstico.",
+          "items": {
+            "type": "string"
+          },
+          "default": []
+        }
+      }
+    }
+}
 }

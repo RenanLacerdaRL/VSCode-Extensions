@@ -1,7 +1,8 @@
 {
   "name": "no-inline-function-calls",
-  "displayName": "RenanLacerda - Funções na mesma linha",
-  "description": "Evita chamadas de função aninhadas na mesma linha (inline) e chamadas encadeadas, exceto quando feitas sobre variáveis locais, parâmetros, propriedades de classe (ex: this.data), dentro de arrays, ou em member chains baseados nessas variáveis.",
+  "displayName": "RL - Chamadas Encadeadas",
+  "publisher": "Renan Lacerda",
+  "description": "Evita chamadas de função aninhadas na mesma linha (inline) e chamadas encadeadas",
   "version": "0.0.1",
   "repository": {
     "type": "git",
@@ -23,17 +24,17 @@
     "configuration": {
       "title": "Inline Function Call",
       "properties": {
-        "inlineFunctionCall.considerLocalVariables": {
+        "rl.inline-function-call.considerLocalVariables": {
           "type": "boolean",
           "default": true,
           "description": "Considerar variáveis locais ao filtrar chamadas de função aninhadas."
         },
-        "inlineFunctionCall.considerParameters": {
+        "rl.inline-function-call.considerParameters": {
           "type": "boolean",
           "default": true,
           "description": "Considerar parâmetros de métodos ao filtrar chamadas de função aninhadas."
         },
-        "inlineFunctionCall.ignoreMethods": {
+        "rl.inline-function-call.ignoreMethods": {
           "type": "array",
           "items": { "type": "string" },
           "default": ["FormControl"],

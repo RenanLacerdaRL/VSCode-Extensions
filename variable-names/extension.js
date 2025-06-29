@@ -3,7 +3,7 @@ const vscode = require('vscode');
 let diagnosticsCollection;
 
 function activate(context) {
-    diagnosticsCollection = vscode.languages.createDiagnosticCollection('arrayNamePlural');
+    diagnosticsCollection = vscode.languages.createDiagnosticCollection('variable-names');
 
     if (vscode.window.activeTextEditor) {
         updateDiagnostics(vscode.window.activeTextEditor.document);
@@ -35,7 +35,7 @@ function updateDiagnostics(document) {
     }
 
     // Carrega lista de palavras para ignorar das configurações do usuário
-    const config = vscode.workspace.getConfiguration('arrayNamePlural');
+    const config = vscode.workspace.getConfiguration('rl.variable-names');
     const ignoreList = config.get('ignoreWords', []);
 
     const diagnostics = [];

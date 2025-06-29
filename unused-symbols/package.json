@@ -1,7 +1,8 @@
 {
   "name": "unused-symbols",
-  "displayName": "RenanLacerda - Símbolos Não Utilizados",
-  "description": "Detecta variáveis e métodos que não estão sendo chamados.",
+  "displayName": "RL - Analisador do Projeto",
+    "publisher": "Renan Lacerda",
+  "description": "Detecta erros e avisos no projeto.",
   "version": "0.0.2",
   "repository": {
     "type": "git",

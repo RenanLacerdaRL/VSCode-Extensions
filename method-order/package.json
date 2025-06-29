@@ -1,6 +1,7 @@
 {
-    "name": "method-order",
-    "displayName": "RenanLacerda - Ordem de Métodos",
+    "name": "rl-method-order",
+    "displayName": "RL - Ordem de Métodos",
+    "publisher": "Renan Lacerda",
     "description": "Garante que os métodos em classes estejam em uma ordem lógica baseada em chamadas.",
     "version": "0.0.2",
     "repository": {
@@ -24,7 +25,7 @@
             "type": "object",
             "title": "Method Order Configuration",
             "properties": {
-                "methodOrder.prefixOrder": {
+                "rl.method-order.prefixOrder": {
                     "type": "array",
                     "items": {
                         "type": "string"
@@ -242,24 +243,11 @@
                         "Trace",
                         "Process"
                     ]
-                        ,
-                        "description": "Lista ordenada dos prefixos de métodos. Use '__ANY__' para indicar qualquer outro prefixo."
                     },
-                    "methodOrder.enforceCallOrder": {
+                    "rl.method-order.enforceCallOrder": {
                         "type": "boolean",
                         "default": true,
                         "description": "Métodos chamados devem vir logo abaixo de quem os chama."
-                    },
-                    "methodOrder.alphabeticalSuffixes": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        },
-                        "default": [
-                            "Message",
-                            "Endpoints"
-                        ],
-                        "description": "Se o nome da classe terminar com qualquer um desses sufixos, os métodos serão verificados apenas pela ordem alfabética, sem usar a ordem por prefixo."
                     }
                 }
             }

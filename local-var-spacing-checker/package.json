@@ -1,6 +1,7 @@
 {
   "name": "local-var-spacing-checker",
-  "displayName": "RenanLacerda - Local Variable Spacing Checker",
+  "displayName": "RL - Linha em Branco",
+  "publisher": "Renan Lacerda",
   "description": "Verifica se há linha em branco antes de variáveis locais.",
   "version": "0.0.1",
   "repository": {

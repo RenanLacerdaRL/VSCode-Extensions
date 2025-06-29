@@ -1,8 +1,8 @@
 {
-  "name": "array-name-plural",
-  "displayName": "RenanLacerda – Nomes de arrays no plural",
-  "publisher": "RenanLacerda",
-  "description": "Garante que variáveis e parâmetros do tipo array terminem com “s” em TypeScript, JavaScript e C#.",
+  "name": "variable-names",
+  "displayName": "RL - Nome das Variáveis",
+  "publisher": "Renan Lacerda",
+  "description": "Analisa se o nome das variáveis combina com suas funções",
   "version": "0.0.1",
   "repository": {
     "type": "git",
@@ -24,7 +24,7 @@
     "configuration": {
       "title": "Array Name Plural",
       "properties": {
-        "arrayNamePlural.ignoreWords": {
+        "rl.variable-names.ignoreWords": {
           "type": "array",
           "description": "Lista de palavras que, se encontradas no nome da variável ou expressão, farão o plugin ignorar o diagnóstico.",
           "items": {

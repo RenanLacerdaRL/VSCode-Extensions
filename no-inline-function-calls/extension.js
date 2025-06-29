@@ -3,7 +3,7 @@ const vscode = require('vscode');
 let diagnosticsCollection;
 
 function activate(context) {
-    diagnosticsCollection = vscode.languages.createDiagnosticCollection('inlineFunctionCall');
+    diagnosticsCollection = vscode.languages.createDiagnosticCollection('rl.inline-function-call');
 
     if (vscode.window.activeTextEditor) {
         updateDiagnostics(vscode.window.activeTextEditor.document);
@@ -31,7 +31,7 @@ function updateDiagnostics(document) {
         return;
     }
 
-    const config = vscode.workspace.getConfiguration('inlineFunctionCall');
+    const config = vscode.workspace.getConfiguration('rl.inline-function-call');
     const considerLocals = config.get('considerLocalVariables', true);
     const considerParams = config.get('considerParameters', true);
     const ignoreMethods = new Set(config.get('ignoreMethods', []));

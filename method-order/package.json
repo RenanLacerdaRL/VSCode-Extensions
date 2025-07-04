@@ -248,6 +248,17 @@
                         "type": "boolean",
                         "default": true,
                         "description": "Métodos chamados devem vir logo abaixo de quem os chama."
+                    },
+                    "rl.method-order.enforceAlphabeticalOrder": {
+                        "type": "boolean",
+                        "default": true,
+                        "description": "Métodos com o mesmo prefixo devem estar em ordem alfabética."
+                    },
+                    "rl.method-order.alphabeticalOnlyPrefixes": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "default": [],
+                        "description": "Se o último prefixo da classe estiver nessa lista, todos os métodos com prefixo devem estar apenas em ordem alfabética."
                     }
                 }
             }

@@ -90,11 +90,6 @@ function updateDiagnostics(document) {
             const varName = match[1];
             const expression = match[2].trim();
 
-            // 0) Ignorar se expressão for regex
-            if (/^\s*\/.+\/.*$/.test(expression)) {
-                continue;
-            }
-
             // 1) Ignorar literais simples
             if (/^(?:\d+(?:\.\d+)?|'.*'|".*"|true|false)$/.test(expression)) {
                 continue;
@@ -113,10 +108,10 @@ function updateDiagnostics(document) {
             // 3) Novo: ignora se o objeto antes do . for singular da variável + 's'
             const objMatch = expression.match(/^([A-Za-z0-9_]+)\./);
             if (objMatch) {
-                const objName = objMatch[1];
+                const objName = objMatch[1];                        // ex: "PostRepository"
                 const singularVar = varName.endsWith('s')
                     ? varName.slice(0, -1).toLowerCase()
-                    : null;
+                    : null;                                        // ex: "post"
                 if (singularVar && objName.toLowerCase().startsWith(singularVar)) {
                     continue;
                 }
@@ -132,6 +127,7 @@ function updateDiagnostics(document) {
                         continue;
                     }
                 }
+                // e também se GetEmail vs. toEmails
                 const objectName = methodName.replace(/^get/i, '');
                 if (objectName) {
                     const pluralObj = objectName.toLowerCase() + 's';

@@ -26,17 +26,6 @@ function deactivate() {
     }
 }
 
-function singularPluralVariants(word) {
-    if (!word) return [word];
-    if (word.endsWith('s')) {
-        const singular = word.slice(0, -1);
-        return [singular, word];
-    } else {
-        const plural = word + 's';
-        return [word, plural];
-    }
-}
-
 function updateDiagnostics(document) {
     const langs = ['typescript', 'typescriptreact', 'javascript', 'javascriptreact', 'csharp'];
 
@@ -90,11 +79,6 @@ function updateDiagnostics(document) {
             const varName = match[1];
             const expression = match[2].trim();
 
-            // 0) Ignorar se expressão for regex
-            if (/^\s*\/.+\/.*$/.test(expression)) {
-                continue;
-            }
-
             // 1) Ignorar literais simples
             if (/^(?:\d+(?:\.\d+)?|'.*'|".*"|true|false)$/.test(expression)) {
                 continue;
@@ -113,10 +97,10 @@ function updateDiagnostics(document) {
             // 3) Novo: ignora se o objeto antes do . for singular da variável + 's'
             const objMatch = expression.match(/^([A-Za-z0-9_]+)\./);
             if (objMatch) {
-                const objName = objMatch[1];
+                const objName = objMatch[1];                        // ex: "PostRepository"
                 const singularVar = varName.endsWith('s')
                     ? varName.slice(0, -1).toLowerCase()
-                    : null;
+                    : null;                                        // ex: "post"
                 if (singularVar && objName.toLowerCase().startsWith(singularVar)) {
                     continue;
                 }
@@ -132,6 +116,7 @@ function updateDiagnostics(document) {
                         continue;
                     }
                 }
+                // e também se GetEmail vs. toEmails
                 const objectName = methodName.replace(/^get/i, '');
                 if (objectName) {
                     const pluralObj = objectName.toLowerCase() + 's';
@@ -145,7 +130,7 @@ function updateDiagnostics(document) {
                 }
             }
 
-            // 5) Verificação de relação original considerando plural e singular
+            // 5) Verificação de relação original
             const varParts = varName
                 .split(/(?=[A-Z])|_/)
                 .map(p => p.toLowerCase())
@@ -157,26 +142,9 @@ function updateDiagnostics(document) {
                 .map(p => p.toLowerCase())
                 .filter(Boolean);
 
-            function singularPluralVariants(word) {
-                if (!word) return [word];
-                if (word.endsWith('s')) {
-                    const singular = word.slice(0, -1);
-                    return [singular, word];
-                } else {
-                    const plural = word + 's';
-                    return [word, plural];
-                }
-            }
-
-            const hasRelation = varParts.some(vp => {
-                const vpVariants = singularPluralVariants(vp);
-                return exprParts.some(ep => {
-                    const epVariants = singularPluralVariants(ep);
-                    return vpVariants.some(vv =>
-                        epVariants.some(ev => ev === vv || ev.includes(vv) || vv.includes(ev))
-                    );
-                });
-            });
+            const hasRelation = varParts.some(vp =>
+                exprParts.some(ep => ep.includes(vp) || vp.includes(ep))
+            );
 
             if (!hasRelation) {
                 const idx = match.index + match[0].indexOf(varName);

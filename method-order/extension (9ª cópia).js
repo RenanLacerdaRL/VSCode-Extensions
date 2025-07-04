@@ -27,15 +27,6 @@ function analyzeDocument(document) {
         return;
     }
 
-    // Avoid matching URLs by only catching // not preceded by ':'
-    const commentRegex = /(?<!:)\/\/.*$/gm;
-    const commentPositions = [];
-    let cMatch;
-    const text = document.getText();
-    while ((cMatch = commentRegex.exec(text)) !== null) {
-        commentPositions.push(cMatch.index);
-    }
-
     const controlKeywords = ['if', 'for', 'foreach', 'forof', 'for of', 'while', 'switch', 'catch', 'else', 'do', 'try'];
     const config = vscode.workspace.getConfiguration('rl.method-order');
     const prefixOrders = config.get('prefixOrder') || [];
@@ -43,22 +34,34 @@ function analyzeDocument(document) {
     const enforceAlphabeticalOrder = config.get('enforceAlphabeticalOrder') === true;
     const alphabeticalOnlyPrefixes = config.get('alphabeticalOnlyPrefixes') || [];
 
+    const text = document.getText();
+    const diagnostics = [];
+
+    // Captura posições de comentários para reset de blocos
+    const commentPositions = [];
+    const commentRegex = /\/\/.*$/gm;
+    let cMatch;
+    while ((cMatch = commentRegex.exec(text)) !== null) {
+        commentPositions.push(cMatch.index);
+    }
+
+    // Captura nome da classe do arquivo
     const classRegex = /(?:export\s+)?class\s+(\w+)/;
     const classMatch = classRegex.exec(text);
     const className = classMatch ? classMatch[1] : '';
     const ignoreUnknownPrefixes = alphabeticalOnlyPrefixes.some(suffix => className.endsWith(suffix));
 
+    // Captura todas as declarações de métodos
     const methodRegex = /^\s*(?:public|protected|private|static|async|static async|abstract)?\s*(\w+)\s*\([^)]*\)\s*\{/gm;
     const methods = [];
     let mMatch;
     while ((mMatch = methodRegex.exec(text)) !== null) {
         const name = mMatch[1];
         if (controlKeywords.includes(name)) continue;
-        const methodStart = mMatch.index;
-        const nameStart = methodStart + mMatch[0].indexOf(name);
-        methods.push({ name, start: methodStart, nameStart });
+        methods.push({ name, start: mMatch.index });
     }
 
+    // Build call map if enforceCallOrder
     let callMap = new Map();
     let firstCaller = {};
     if (enforceCallOrder) {
@@ -72,8 +75,7 @@ function analyzeDocument(document) {
                 j++;
             }
             let body = text.slice(bodyStart + 1, j - 1);
-            // Avoid stripping URLs as comments
-            body = body.replace(/(?<!:)\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+            body = body.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
             const calls = [];
             const callRegex = /(?:this\.|(?<![\.\w]))(\w+)\s*\(/g;
             let cm;
@@ -92,12 +94,12 @@ function analyzeDocument(document) {
         }
     }
 
-    const diagnostics = [];
+    // Verifica existência de prefixo (ignora se a classe estiver na lista)
     if (!ignoreUnknownPrefixes) {
         methods.forEach(m => {
             const hasPrefix = prefixOrders.some(pref => m.name.startsWith(pref));
             if (!hasPrefix) {
-                const pos = document.positionAt(m.nameStart);
+                const pos = document.positionAt(m.start);
                 diagnostics.push(new vscode.Diagnostic(
                     new vscode.Range(pos, pos.translate(0, m.name.length)),
                     `Prefixo desconhecido para o método "${m.name}".`,
@@ -107,95 +109,83 @@ function analyzeDocument(document) {
         });
     }
 
-    // Special case: for classes ending with configured suffix and alphabetical order enabled
-    if (ignoreUnknownPrefixes && enforceAlphabeticalOrder) {
-        let lastPrefix = null;
-        let lastMethodName = null;
-
-        methods.forEach(m => {
-            // Extract prefix as first PascalCase segment
-            const prefixMatch = /^([A-Z][a-z]+)/.exec(m.name);
-            const prefix = prefixMatch ? prefixMatch[1] : m.name;
-
-            if (lastPrefix) {
-                if (prefix.localeCompare(lastPrefix) < 0) {
-                    const pos = document.positionAt(m.nameStart);
-                    diagnostics.push(new vscode.Diagnostic(
-                        new vscode.Range(pos, pos.translate(0, m.name.length)),
-                        `O grupo de prefixos "${prefix}" deve vir antes de "${lastPrefix}".`,
-                        vscode.DiagnosticSeverity.Warning
-                    ));
-                } else if (prefix === lastPrefix && m.name.localeCompare(lastMethodName) < 0) {
-                    const pos = document.positionAt(m.nameStart);
-                    diagnostics.push(new vscode.Diagnostic(
-                        new vscode.Range(pos, pos.translate(0, m.name.length)),
-                        `O método "${m.name}" está fora de ordem alfabética dentro do prefixo "${prefix}".`,
-                        vscode.DiagnosticSeverity.Warning
-                    ));
-                }
-            }
-
-            lastPrefix = prefix;
-            lastMethodName = m.name;
-        });
-
-        diagnosticsCollection.set(document.uri, diagnostics);
-        return;
-    }
-
-    // ... existing logic for call order and prefixOrder/enforceAlphabeticalOrder ...
+    // Verifica ordem: call order tem prioridade sobre prefixOrder
     let lastIdx = -1;
     let lastMethod = null;
     let commentIdx = 0;
-    let lastPref = null;
+    let lastPrefix = null;
 
-    methods.forEach(m => {
-        while (commentIdx < commentPositions.length && commentPositions[commentIdx] < m.start) {
-            lastIdx = -1;
-            lastMethod = null;
-            lastPref = null;
-            commentIdx++;
-        }
+    if (ignoreUnknownPrefixes && enforceAlphabeticalOrder) {
+        // Só verifica ordem alfabética simples para todos métodos
+        methods.forEach((m) => {
+            while (commentIdx < commentPositions.length && commentPositions[commentIdx] < m.start) {
+                lastMethod = null;
+                commentIdx++;
+            }
 
-        if (enforceCallOrder && firstCaller[m.name] !== undefined) {
-            const callerIdx = firstCaller[m.name];
-            const callerMethod = methods[callerIdx];
-            const mIdx = methods.indexOf(m);
-            if (mIdx <= callerIdx) {
-                const pos = document.positionAt(m.nameStart);
+            if (lastMethod && m.name.localeCompare(lastMethod.name) < 0) {
+                const pos = document.positionAt(m.start);
                 diagnostics.push(new vscode.Diagnostic(
                     new vscode.Range(pos, pos.translate(0, m.name.length)),
-                    `O método "${m.name}" precisa estar abaixo de "${callerMethod.name}".`,
+                    `O método "${m.name}" está fora de ordem alfabética.`,
                     vscode.DiagnosticSeverity.Warning
                 ));
             }
-            return;
-        }
 
-        const idx = prefixOrders.findIndex(pref => m.name.startsWith(pref));
-        if (idx >= 0) {
-            if (lastMethod && idx < lastIdx) {
-                const pos = document.positionAt(m.nameStart);
-                diagnostics.push(new vscode.Diagnostic(
-                    new vscode.Range(pos, pos.translate(0, m.name.length)),
-                    `O método "${m.name}" precisa estar acima de "${lastMethod.name}".`,
-                    vscode.DiagnosticSeverity.Warning
-                ));
-            } else if (enforceAlphabeticalOrder && lastIdx === idx && lastPref === prefixOrders[idx]) {
-                if (m.name.localeCompare(lastMethod.name) < 0) {
-                    const pos = document.positionAt(m.nameStart);
+            lastMethod = m;
+        });
+    } else {
+        methods.forEach(m => {
+            // reset de bloco por comentário
+            while (commentIdx < commentPositions.length && commentPositions[commentIdx] < m.start) {
+                lastIdx = -1;
+                lastMethod = null;
+                lastPrefix = null;
+                commentIdx++;
+            }
+
+            // Se enforceCallOrder e método tem chamador, faz só call order
+            if (enforceCallOrder && firstCaller[m.name] !== undefined) {
+                const callerIdx = firstCaller[m.name];
+                const callerMethod = methods[callerIdx];
+                const mIdx = methods.indexOf(m);
+                if (mIdx <= callerIdx) {
+                    const pos = document.positionAt(m.start);
                     diagnostics.push(new vscode.Diagnostic(
                         new vscode.Range(pos, pos.translate(0, m.name.length)),
-                        `O método "${m.name}" está fora de ordem alfabética dentro do prefixo "${prefixOrders[idx]}".`,
+                        `O método "${m.name}" precisa estar abaixo de "${callerMethod.name}".`,
                         vscode.DiagnosticSeverity.Warning
                     ));
                 }
+                return;
             }
-            lastIdx = idx;
-            lastMethod = m;
-            lastPref = prefixOrders[idx];
-        }
-    });
+
+            // Verifica prefixOrder + ordem alfabética
+            const idx = prefixOrders.findIndex(pref => m.name.startsWith(pref));
+            if (idx >= 0) {
+                if (lastMethod && idx < lastIdx) {
+                    const pos = document.positionAt(m.start);
+                    diagnostics.push(new vscode.Diagnostic(
+                        new vscode.Range(pos, pos.translate(0, m.name.length)),
+                        `O método "${m.name}" precisa estar acima de "${lastMethod.name}".`,
+                        vscode.DiagnosticSeverity.Warning
+                    ));
+                } else if (enforceAlphabeticalOrder && lastIdx === idx && lastPrefix === prefixOrders[idx]) {
+                    if (m.name.localeCompare(lastMethod.name) < 0) {
+                        const pos = document.positionAt(m.start);
+                        diagnostics.push(new vscode.Diagnostic(
+                            new vscode.Range(pos, pos.translate(0, m.name.length)),
+                            `O método "${m.name}" está fora de ordem alfabética dentro do prefixo "${prefixOrders[idx]}".`,
+                            vscode.DiagnosticSeverity.Warning
+                        ));
+                    }
+                }
+                lastIdx = idx;
+                lastMethod = m;
+                lastPrefix = prefixOrders[idx];
+            }
+        });
+    }
 
     diagnosticsCollection.set(document.uri, diagnostics);
 }

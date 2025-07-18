@@ -1,4 +1,4 @@
-    "rl.method-order.prefixOrder": [
+"rl.method-order.prefixOrder": [
         // ===== Lifecycle =====
         "constructor",
         // ===== Framework Hooks =====
@@ -10,14 +10,15 @@
         // ===== Factory =====
         "Build",
         "Generate",
-        "Post",
         // ===== Instantiation =====
         "Instantiate",
         // ===== Cloning =====
         "Clone",
         // ===== Initialization =====
         "Initialize",
+        "Configure",
         "Setup",
+        "Use",
         // ===== Dependency Management =====
         "Attach",
         "Detach",
@@ -43,6 +44,7 @@
         "Remove",
         "Append",
         "Filter",
+        "BySession",
         "By",
         "Map",
         "transform",
@@ -83,12 +85,6 @@
         "Validate",
         "Verify",
         "Match",
-        // ===== Security =====
-        "Authorize",
-        "Authenticate",
-        "Encrypt",
-        "Decrypt",
-        "Approve",
         // ===== Async =====
         "Start",
         "Stop",
@@ -98,13 +94,13 @@
         "Launch",
         "Wait",
         "Await",
+        "Transition",
         // ===== Frame Update =====
-        "FixedUpdate",
-        "Update",
-        // ===== Game Loop =====
-        "LateUpdate",
         "Tick",
         "Step",
+        "FixedUpdate",
+        "Update",
+        "LateUpdate",
         "FrameUpdate",
         // ===== State Management =====
         "Enable",
@@ -119,13 +115,28 @@
         "Mark",
         "Edit",
         "Rename",
+        // ===== Security =====
+        "Authorize",
+        "Authenticate",
+        "Encrypt",
+        "Decrypt",
+        "Approve",
+        // =====Attempts =====
+        "Try",
         // ===== UI Operations =====
+        "ShowInfo",
+        "ShowDebug",
+        "ShowSuccess",
+        "ShowWarning",
+        "ShowError",
+        "ShowFatal",
         "Show",
         "Hide",
         "Open",
         "Close",
         "Play",
         "Pause",
+        "Next",
         "Previous",
         "Dismiss",
         "Resume",
@@ -139,11 +150,17 @@
         "Request",
         "Response",
         "Send",
+        "Post",
         "Put",
         "Patch",
         "Download",
         "Upload",
         "Connect",
+        "NavigateMethod",
+        "NavigatePost",
+        "NavigateGet",
+        "NavigatePut",
+        "NavigateDelete",
         "Navigate",
         "Redirect",
         "Url",
@@ -205,7 +222,7 @@
         "Delete",
         // ===== Logging =====
         "Log",
-        "Info",
+        // "Info",
         "Debug",
         "Success",
         "Warn",
@@ -226,7 +243,3 @@
     ],
     "rl.method-order.enforceCallOrder": false,
     "rl.method-order.enforceAlphabeticalOrder": true,
-    "rl.method-order.alphabeticalOnlyPrefixes": [
-        "Headers",
-        "Message",
-    ],

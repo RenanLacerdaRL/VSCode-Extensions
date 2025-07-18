@@ -188,12 +188,11 @@ if (varName.toLowerCase().includes('regex')) {
             }
         }
 
-} else if (document.languageId === 'csharp') {
-        // 1) Continua pegando arrays, genéricos e GetComponents
+    } else if (document.languageId === 'csharp') {
         const csPatterns = [
-            /^\s*(?:public|protected|private|internal)?\s*(?:static\s*)?(?:readonly\s*)?\s*(?:[\w\.]+\s*\[\]|\b(?:List|IList|IEnumerable|Collection)<[^>]+>)\s+(\w+)\s*(?:=|;)/gm,
-            /\bvar\s+(\w+)\s*=\s*new\s+[\w<>\.\[\]]+\s*(?:\(|\[)/g,
-            /\bvar\s+(\w+)\s*=\s*[\w\.]*GetComponents?<[^>]+>\(\)/g
+            /\b[\w<>\.]+\s*\[\]\s+(\w+)\b/g,
+            /\b(?:List|IList|IEnumerable|Collection)<[^>]+>\s+(\w+)\b/g,
+            /\bvar\s+(\w+)\s*=\s*new\s+[\w<>\.\[\]]+\s*(?:\(|\[)/g
         ];
 
         for (const pattern of csPatterns) {
@@ -206,51 +205,8 @@ if (varName.toLowerCase().includes('regex')) {
                 }
             }
         }
-// 2) **NOVO**: capturar declarações simples que não são coleções
-        const assignPattern = /\b(?:var|int|float|double|bool|string)\s+(\w+)\s*=\s*([^;]+);/g;
-        let am;
-        while ((am = assignPattern.exec(text)) !== null) {
-            const varName = am[1];
-            const expr   = am[2].trim();
-
-            // reutiliza as mesmas fases de ignorar literais, regex, lista de exceções etc.
-            if (/^(?:\d+(?:\.\d+)?|true|false)$/.test(expr))       continue;
-            if (expr.toLowerCase().includes('regex'))              continue;
-            if (ignoreList.some(w => expr.toLowerCase().includes(w.toLowerCase()))) continue;
-
-            // isola partes do nome da variável e da expressão
-            const varParts = varName
-                .split(/(?=[A-Z])|_/).map(p=>p.toLowerCase()).filter(Boolean);
-            const exprParts = expr
-                .replace(/\bawait\b/gi, '')
-                .split(/[^A-Za-z0-9]+/).map(p=>p.toLowerCase()).filter(Boolean);
-
-            // função auxiliar (singular ↔ plural)
-            function variants(w) {
-                if (!w) return [w];
-                if (w.endsWith('s')) return [w.slice(0,-1), w];
-                return [w, w+'s'];
-            }
-
-            // verifica se *alguma* variante bate
-            const related = varParts.some(vp => {
-                return variants(vp).some(vv =>
-                    exprParts.some(ep =>
-                        variants(ep).some(ev => ev === vv || ev.includes(vv) || vv.includes(ev))
-                    )
-                );
-            });
-
-            if (!related) {
-                const idx = am.index + am[0].indexOf(varName);
-                addDiagnostic(
-                    varName,
-                    idx,
-                    `A variável "${varName}" não tem relação aparente com a expressão "${expr}".`
-                );
-            }
-        }
     }
+
     diagnosticsCollection.set(document.uri, diagnostics);
 }
 

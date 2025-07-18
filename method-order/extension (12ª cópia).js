@@ -48,9 +48,7 @@ function analyzeDocument(document) {
     const className = classMatch ? classMatch[1] : '';
     const ignoreUnknownPrefixes = alphabeticalOnlyPrefixes.some(suffix => className.endsWith(suffix));
 
-//     const methodRegex = /^\s*(?:public|protected|private|internal)?\s*(?:static\s*)?(?:async\s*)?(?:[\w<>\[\],\s]+\s+)?(\w+)\s*\([^)]*\)\s*\{/gm;
-    const methodRegex = /^\s*(?:public|protected|private|internal)?\s*(?:static\s*)?(?:async\s*)?(?:[\w<>\[\],\s]+\s+)?(\w+)\s*\([^)]*\)\s*(?::\s*[\w<>\[\],\s]+)?\s*\{/gm;
-
+    const methodRegex = /^\s*(?:public|protected|private|static|async|static async|abstract)?\s*(\w+)\s*\([^)]*\)\s*\{/gm;
     const methods = [];
     let mMatch;
     while ((mMatch = methodRegex.exec(text)) !== null) {

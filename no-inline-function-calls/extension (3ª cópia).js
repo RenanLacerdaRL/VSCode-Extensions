@@ -40,10 +40,14 @@ function updateDiagnostics(document) {
     const diagnostics = [];
 
     const importedNames = new Set();
-    const importRegex = /^\s*import\s+{([^}]+)}\s+from\s+['"][^'"]+['"];?/;
+    const importRegex = /^\s*import\s+{([^}]+)}\s+from\s+['"][^'"]+['"]/;
     for (const line of lines) {
         const m = importRegex.exec(line);
-        if (m) m[1].split(',').forEach(name => importedNames.add(name.trim()));
+        if (m) {
+            m[1].split(',').forEach(name => {
+                importedNames.add(name.trim());
+            });
+        }
     }
 
     const localNames = new Set();
@@ -52,9 +56,15 @@ function updateDiagnostics(document) {
     const methodSigRegex = /^\s*(?:public\s+|private\s+|protected\s+)?(?:static\s+)?[A-Za-z_$]\w*\s*\(([^)]*)\)\s*{/;
     for (const line of lines) {
         let m;
-        if (considerLocals && (m = varDeclRegex.exec(line))) localNames.add(m[1]);
+        if (considerLocals && (m = varDeclRegex.exec(line))) {
+            localNames.add(m[1]);
+        }
         if (considerParams && (m = methodSigRegex.exec(line))) {
-            m[1].split(',').map(p => p.split(/[:=]/)[0].trim()).filter(p => p).forEach(p => paramNames.add(p));
+            const params = m[1]
+                .split(',')
+                .map(p => p.split(/[:=]/)[0].trim())
+                .filter(p => p);
+            params.forEach(p => paramNames.add(p));
         }
     }
 
@@ -66,9 +76,9 @@ function updateDiagnostics(document) {
         if (controlStructRegex.test(line) || line.includes('=>')) continue;
 
         const codeLine = line
-            .replace(/(['"`])(?:\\[\s\S]|(?!\1)[^\\])*\1/g, str => ' '.repeat(str.length))
-            .replace(/\/(?![/*])(?:\\.|[^\\\/])+\/[gimsuy]*/g, m => ' '.repeat(m.length))
-            .replace(/\/\/.*$/g, m => ' '.repeat(m.length));
+            .replace(/(['"`])(?:\\[\s\S]|(?!\1)[^\\])*\1/g, str => ' '.repeat(str.length)) // ignora strings
+            .replace(/\/(?![/*])(?:\\.|[^/\\])+\/[gimsuy]*/g, m => ' '.repeat(m.length))     // ignora regex
+            .replace(/\/\/.*$/g, m => ' '.repeat(m.length)); // ignora comentários de linha
 
         let match;
         while ((match = nestedCallRegex.exec(codeLine)) !== null) {
@@ -76,16 +86,12 @@ function updateDiagnostics(document) {
             const openParens = (snippet.match(/\(/g) || []).length;
             let shouldIgnore = false;
 
-            // 1) Ignorar se o primeiro segmento (antes do ponto) terminar com algum ignoreMethod
-            const callRegex = /([\w\.]+)\s*\(/g;
-            let callMatch;
-            while (!shouldIgnore && (callMatch = callRegex.exec(snippet)) !== null) {
-                const first = callMatch[1].split('.')[0];
-                for (const name of ignoreMethods) {
-                    if (first.endsWith(name)) {
-                        shouldIgnore = true;
-                        break;
-                    }
+            // 1) Ignorar se for método da lista ignoreMethods (inclui 'new')
+            for (const name of ignoreMethods) {
+                const re = new RegExp(`^(?:new\\s+)?${name}\\s*\\(`);
+                if (re.test(snippet)) {
+                    shouldIgnore = true;
+                    break;
                 }
             }
             if (shouldIgnore) continue;

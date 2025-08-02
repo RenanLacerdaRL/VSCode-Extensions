@@ -1,0 +1,45 @@
+{
+  "name": "block-color",
+  "displayName": "RenanLacerda - Bloco Colorido",
+  "description": "Pinta o fundo de blocos de código com base em comentários contendo cores hexadecimais.",
+  "version": "0.0.2",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "engines": { "vscode": "^1.60.0" },
+  "icon": "icon.png",
+  "activationEvents": [
+    "onLanguage:typescript",
+    "onLanguage:typescriptreact",
+    "onLanguage:javascript",
+    "onLanguage:javascriptreact",
+    "onLanguage:csharp"
+  ],
+  "main": "./extension.js",
+  "icon": "icon.png",
+  "categories": ["Linters"],
+"contributes": {
+  "configuration": {
+    "type": "object",
+    "title": "RL Color Background",
+    "properties": {
+      "rl.block-color.showBackground": {
+        "type": "boolean",
+        "default": false,
+        "description": "Quando true, exibe também um fundo levemente colorido por trás do bloco."
+      },
+      "rl.block-color.showBorder": {
+        "type": "boolean",
+        "default": true,
+        "description": "Quando true, exibe a borda colorida em torno do bloco."
+      },
+      "rl.block-color.defaultColor": {
+        "type": "string",
+        "default": "#cccccc",
+        "description": "Cor usada quando comentário contém apenas `{}` (sem hex)."
+      }
+    }
+  }
+}
+}

@@ -1,5 +1,5 @@
 bl_info = {
-    "name": "QuickMenu",
+    "name": "QuickMenuRL",
     "author": "RenanLacerda/ChatGPT",
     "version": (1, 1),
     "blender": (2, 80, 0),
@@ -14,9 +14,9 @@ import mathutils
 from bpy.app.handlers import persistent 
 from mathutils import Vector, Matrix
 
-class QuickMenu_MT_main(bpy.types.Menu):
-    bl_label = "QuickMenu"
-    bl_idname = "QUICKMENU_MT_main"
+class QuickMenuRL_MT_main(bpy.types.Menu):
+    bl_label = "QuickMenuRL"
+    bl_idname = "QUICKMENURL_MT_main"
 
     def draw(self, context):
         if(bpy.context.space_data.type == 'VIEW_3D'):
@@ -78,7 +78,7 @@ class QuickMenu_MT_main(bpy.types.Menu):
             operation=layout.operator("uv.pack_islands",text="Pack Islands",icon="IMAGE_PLANE")
 
 # OPERADORES
-class QuickMenu_OT_toggle_wireframe(bpy.types.Operator):
+class QuickMenuRL_OT_toggle_wireframe(bpy.types.Operator):
     bl_idname = "object.toggle_wireframe"
     bl_label = "Alternar Wireframe"
     bl_options = {'REGISTER', 'UNDO'}
@@ -87,7 +87,7 @@ class QuickMenu_OT_toggle_wireframe(bpy.types.Operator):
         overlay = context.space_data.overlay
         overlay.show_wireframes = not overlay.show_wireframes
         return {'FINISHED'}
-class QuickMenu_OT_toggle_measurement(bpy.types.Operator):
+class QuickMenuRL_OT_toggle_measurement(bpy.types.Operator):
     bl_idname = "object.toggle_measurement"
     bl_label = "Alternar Wireframe"
     bl_options = {'REGISTER', 'UNDO'}
@@ -95,7 +95,7 @@ class QuickMenu_OT_toggle_measurement(bpy.types.Operator):
     def execute(self, context):
         bpy.context.space_data.overlay.show_extra_edge_length = not bpy.context.space_data.overlay.show_extra_edge_length
         return {'FINISHED'}
-class QuickMenu_OT_set_pivot_to_cursor(bpy.types.Operator):
+class QuickMenuRL_OT_set_pivot_to_cursor(bpy.types.Operator):
     bl_idname = "object.set_pivot_to_cursor"
     bl_label = "Pivot to Cursor"
 
@@ -105,7 +105,7 @@ class QuickMenu_OT_set_pivot_to_cursor(bpy.types.Operator):
         context.scene.tool_settings.snap_target = "CENTER"
         context.scene.cursor.location = cursor_pos
         return {'FINISHED'}
-class QuickMenu_OT_set_pivot_to_center(bpy.types.Operator):
+class QuickMenuRL_OT_set_pivot_to_center(bpy.types.Operator):
     bl_idname = "object.set_pivot_to_center"
     bl_label = "Pivot to Center"
 
@@ -113,7 +113,7 @@ class QuickMenu_OT_set_pivot_to_center(bpy.types.Operator):
         bpy.data.scenes["Scene"].tool_settings.transform_pivot_point="BOUNDING_BOX_CENTER"
         bpy.data.scenes["Scene"].tool_settings.snap_target="CENTER"
         return {'FINISHED'}
-class QuickMenu_OT_set_pivot_to_active(bpy.types.Operator):
+class QuickMenuRL_OT_set_pivot_to_active(bpy.types.Operator):
     bl_idname = "object.set_pivot_to_active"
     bl_label = "Pivot to Active"
 
@@ -121,7 +121,7 @@ class QuickMenu_OT_set_pivot_to_active(bpy.types.Operator):
         bpy.data.scenes["Scene"].tool_settings.transform_pivot_point="ACTIVE_ELEMENT"
         bpy.data.scenes["Scene"].tool_settings.snap_target="ACTIVE"
         return {'FINISHED'}
-class QuickMenu_OT_set_pivot_to_active_area(bpy.types.Operator):
+class QuickMenuRL_OT_set_pivot_to_active_area(bpy.types.Operator):
     bl_idname = "object.set_pivot_to_active_area"
     bl_label = "Pivot to Active Area"
 
@@ -130,7 +130,7 @@ class QuickMenu_OT_set_pivot_to_active_area(bpy.types.Operator):
         bpy.context.scene.tool_settings.transform_pivot_point = 'CURSOR'
         bpy.context.scene.tool_settings.snap_target = 'ACTIVE'
         return {'FINISHED'}
-class QuickMenu_OT_set_pivot_to_object_center(bpy.types.Operator):
+class QuickMenuRL_OT_set_pivot_to_object_center(bpy.types.Operator):
     bl_idname = "object.set_pivot_to_object_center"
     bl_label = "Pivot to Object Center"
 
@@ -144,7 +144,7 @@ class QuickMenu_OT_set_pivot_to_object_center(bpy.types.Operator):
         bpy.data.scenes["Scene"].tool_settings.transform_pivot_point="CURSOR"
         bpy.data.scenes["Scene"].tool_settings.snap_target="CENTER"
         return {'FINISHED'}
-class QuickMenu_OT_set_pivot_to_object_point(bpy.types.Operator):
+class QuickMenuRL_OT_set_pivot_to_object_point(bpy.types.Operator):
     bl_idname = "object.set_pivot_to_object_point"
     bl_label = "Pivot to Object Point"
 
@@ -163,7 +163,7 @@ class QuickMenu_OT_set_pivot_to_object_point(bpy.types.Operator):
         bpy.data.scenes["Scene"].tool_settings.snap_target="CENTER"
         bpy.context.scene.cursor.location=cursorPosition
         return {'FINISHED'}
-class QuickMenu_OT_fix_materials_order(bpy.types.Operator):
+class QuickMenuRL_OT_fix_materials_order(bpy.types.Operator):
     bl_idname = "object.fix_materials_order"
     bl_label = "Fix Materials Order"
 
@@ -176,14 +176,14 @@ class QuickMenu_OT_fix_materials_order(bpy.types.Operator):
             bpy.ops.mesh.select_all(action='SELECT')
             bpy.ops.mesh.sort_elements(type='MATERIAL', elements={'FACE'})
         return {'FINISHED'}
-class QuickMenu_OT_link_materials(bpy.types.Operator):
+class QuickMenuRL_OT_link_materials(bpy.types.Operator):
     bl_idname = "object.link_materials"
     bl_label = "Link Materials"
 
     def execute(self, context):
         bpy.ops.object.make_links_data(type='MATERIAL')
         return {'FINISHED'}
-class QuickMenu_OT_set_custom_orientation(bpy.types.Operator):
+class QuickMenuRL_OT_set_custom_orientation(bpy.types.Operator):
     bl_idname = "object.set_custom_orientation"
     bl_label = "Set Custom Orientation"
 
@@ -191,7 +191,7 @@ class QuickMenu_OT_set_custom_orientation(bpy.types.Operator):
         bpy.ops.transform.create_orientation(name='orientation', overwrite=True)
         bpy.context.scene.transform_orientation_slots[1].type = 'orientation'
         return {'FINISHED'}
-class QuickMenu_OT_select_object_group(bpy.types.Operator):
+class QuickMenuRL_OT_select_object_group(bpy.types.Operator):
     bl_idname = "object.select_object_group"
     bl_label = "Select Object Group"
 
@@ -208,31 +208,31 @@ class QuickMenu_OT_select_object_group(bpy.types.Operator):
         return {'FINISHED'}
 
 # ABRIR MENU
-class QuickMenu_OT_call_main_menu(bpy.types.Operator):
-    bl_idname = "wm.quickmenu_popup"
-    bl_label = "Abrir QuickMenu"
+class QuickMenuRL_OT_call_main_menu(bpy.types.Operator):
+    bl_idname = "wm.quickmenurl_popup"
+    bl_label = "Abrir QuickMenuRL"
 
     def execute(self, context):
-        bpy.ops.wm.call_menu(name=QuickMenu_MT_main.bl_idname)
+        bpy.ops.wm.call_menu(name=QuickMenuRL_MT_main.bl_idname)
         return {'FINISHED'}
 
 # REGISTRO
 addon_keymaps = []
 classes = [
-    QuickMenu_MT_main,
-    QuickMenu_OT_call_main_menu,
-    QuickMenu_OT_toggle_wireframe,
-    QuickMenu_OT_toggle_measurement,
-    QuickMenu_OT_select_object_group,
-    QuickMenu_OT_set_pivot_to_cursor,
-    QuickMenu_OT_set_pivot_to_center,
-    QuickMenu_OT_set_pivot_to_active,
-    QuickMenu_OT_set_pivot_to_active_area,
-    QuickMenu_OT_set_pivot_to_object_center,
-    QuickMenu_OT_set_pivot_to_object_point,
-    QuickMenu_OT_link_materials,
-    QuickMenu_OT_set_custom_orientation,
-    QuickMenu_OT_fix_materials_order,
+    QuickMenuRL_MT_main,
+    QuickMenuRL_OT_call_main_menu,
+    QuickMenuRL_OT_toggle_wireframe,
+    QuickMenuRL_OT_toggle_measurement,
+    QuickMenuRL_OT_select_object_group,
+    QuickMenuRL_OT_set_pivot_to_cursor,
+    QuickMenuRL_OT_set_pivot_to_center,
+    QuickMenuRL_OT_set_pivot_to_active,
+    QuickMenuRL_OT_set_pivot_to_active_area,
+    QuickMenuRL_OT_set_pivot_to_object_center,
+    QuickMenuRL_OT_set_pivot_to_object_point,
+    QuickMenuRL_OT_link_materials,
+    QuickMenuRL_OT_set_custom_orientation,
+    QuickMenuRL_OT_fix_materials_order,
 ]
 
 def register():
@@ -245,13 +245,13 @@ def register():
         # VIEW_3D
         km = kc.keymaps.new(name='3D View', space_type='VIEW_3D')
         kmi = km.keymap_items.new('wm.call_menu', type='Q', value='PRESS')
-        kmi.properties.name = "QUICKMENU_MT_main"
+        kmi.properties.name = "QUICKMENURL_MT_main"
         addon_keymaps.append((km, kmi))
 
         # IMAGE_EDITOR (UV Editor)
         km = kc.keymaps.new(name='Image', space_type='IMAGE_EDITOR')
         kmi = km.keymap_items.new('wm.call_menu', type='Q', value='PRESS')
-        kmi.properties.name = "QUICKMENU_MT_main"
+        kmi.properties.name = "QUICKMENURL_MT_main"
         addon_keymaps.append((km, kmi))
 
 def unregister():

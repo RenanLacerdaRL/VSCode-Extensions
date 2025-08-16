@@ -2,7 +2,7 @@
   "name": "block-color",
   "displayName": "RenanLacerda - Bloco Colorido",
   "description": "Pinta o fundo de blocos de código com base em comentários contendo cores hexadecimais.",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "repository": {
     "type": "git",
     "url": ""
@@ -17,29 +17,76 @@
     "onLanguage:csharp"
   ],
   "main": "./extension.js",
-  "icon": "icon.png",
   "categories": ["Linters"],
-"contributes": {
-  "configuration": {
-    "type": "object",
-    "title": "RL Color Background",
-    "properties": {
-      "rl.block-color.showBackground": {
-        "type": "boolean",
-        "default": false,
-        "description": "Quando true, exibe também um fundo levemente colorido por trás do bloco."
-      },
-      "rl.block-color.showBorder": {
-        "type": "boolean",
-        "default": true,
-        "description": "Quando true, exibe a borda colorida em torno do bloco."
-      },
-      "rl.block-color.defaultColor": {
-        "type": "string",
-        "default": "#cccccc",
-        "description": "Cor usada quando comentário contém apenas `{}` (sem hex)."
+  "contributes": {
+    "configuration": {
+      "properties": {
+        "rl.block-color.showBackground": {
+          "type": "boolean",
+          "default": false,
+          "description": "Exibir fundo colorido nos blocos"
+        },
+        "rl.block-color.showBorder": {
+          "type": "boolean",
+          "default": true,
+          "description": "Exibir borda nos blocos"
+        },
+        "rl.block-color.defaultColor": {
+          "type": "string",
+          "default": "#cccccc",
+          "description": "Cor padrão para blocos sem cor específica"
+        },
+        "rl.block-color.staticMethodColor": {
+          "type": "string",
+          "default": "#f44747",
+          "description": "Cor para métodos estáticos (Classe.Metodo())"
+        },
+        "rl.block-color.enableStaticNames": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ativar highlight de métodos estáticos"
+        },
+        "rl.block-color.newClassColor": {
+          "type": "string",
+          "default": "#569CD6",
+          "description": "Cor para classes instanciadas (new Classe())"
+        },
+        "rl.block-color.enableNewClassNames": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ativar highlight de classes instanciadas"
+        },
+        "rl.block-color.definedMethodColor": {
+          "type": "string",
+          "default": "#00ff99",
+          "description": "Cor para métodos definidos no próprio arquivo"
+        },
+        "rl.block-color.enableDefinedMethodColor": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ativar highlight de métodos definidos no arquivo"
+        },
+        "rl.block-color.decoratorColor": {
+          "type": "string",
+          "default": "#c586c0",
+          "description": "Cor para decorators (ex: @Injectable, @Output)"
+        },
+        "rl.block-color.enableDecoratorColor": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ativar highlight de decorators"
+        },
+        "rl.block-color.ignoreEnums": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ignorar enums (não colorir)"
+        },
+        "rl.block-color.ignoredPrefixes": {
+          "type": "array",
+          "default": ["Messages", "Constants", "Service"],
+          "description": "Lista de sufixos que não devem ser coloridos"
+        }
       }
     }
   }
-}
 }

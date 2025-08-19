@@ -1,8 +1,8 @@
 {
   "name": "variable-names",
   "displayName": "RL - Nome das Variáveis",
-  "publisher": "Renan Lacerda",
   "description": "Analisa se o nome das variáveis combina com suas funções",
+  "publisher": "Renan_Lacerda",
   "version": "0.0.1",
   "repository": {
     "type": "git",

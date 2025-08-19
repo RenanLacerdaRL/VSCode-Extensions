@@ -1,7 +1,7 @@
 {
   "name": "no-magic-numbers",
   "displayName": "RenanLacerda – Números mágicos",
-  "publisher": "RenanLacerda",
+  "publisher": "Renan_Lacerda",
   "description": "Detecta literais numéricos ‘mágicos’ em TypeScript, JavaScript e C# sem precisar de ESLint.",
   "version": "0.0.1",
   "repository": {

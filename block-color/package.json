@@ -1,6 +1,7 @@
 {
   "name": "block-color",
-  "displayName": "RenanLacerda - Bloco Colorido",
+  "displayName": "RL - Bloco Colorido",
+  "publisher": "Renan_Lacerda",
   "description": "Pinta o fundo de blocos de código com base em comentários contendo cores hexadecimais.",
   "version": "0.0.3",
   "repository": {

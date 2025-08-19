@@ -1,7 +1,7 @@
 {
   "name": "no-inline-function-calls",
   "displayName": "RL - Chamadas Encadeadas",
-  "publisher": "Renan Lacerda",
+  "publisher": "Renan_Lacerda",
   "description": "Evita chamadas de função aninhadas na mesma linha (inline) e chamadas encadeadas",
   "version": "0.0.1",
   "repository": {

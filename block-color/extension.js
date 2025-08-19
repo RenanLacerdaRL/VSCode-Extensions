@@ -251,7 +251,8 @@ function updateDecorations(editor) {
         decorationTypes.push(definedMethodDecoration);
 
         const definedMethodRanges = [];
-        const methodRegex = /\b(?:public|private|protected|async\s+)?([A-Za-z_]\w*)\s*\([^)]*\)\s*(?::\s*[\w<>,\s]+)?\s*\{/g;
+//         const methodRegex = /\b(?:public|private|protected|async\s+)?([A-Za-z_]\w*)\s*\([^)]*\)\s*(?::\s*[\w<>,\s]+)?\s*\{/g;
+        const methodRegex = /\b(?:public|private|protected|async\s+)?([A-Za-z_]\w*)\s*\([^)]*\)\s*(?::\s*[^({\n]+)?\s*{/g;
 
         lines.forEach((text, line) => {
             if (text.trim().startsWith('//')) return;

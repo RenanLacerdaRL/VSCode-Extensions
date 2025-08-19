@@ -86,14 +86,19 @@ function updateDiagnostics(document) {
         }
 
         const usagePattern = /^\s*(?:const|let|var)\s+(\w+)\s*=\s*(?:await\s+)?([^;\n]+)/gm;
-        while ((match = usagePattern.exec(text)) !== null) {
+         while ((match = usagePattern.exec(text)) !== null) {
             const varName = match[1];
             const expression = match[2].trim();
 
             // 0) Ignorar se expressão for regex
-if (varName.toLowerCase().includes('regex')) {
-    continue;
-}
+            if (varName.toLowerCase().includes('regex')) {
+                continue;
+            }
+
+            // **NOVO**: ignorar se for chamada ao super
+            if (expression.startsWith('super.')) {
+                continue;
+            }
 
             // 1) Ignorar literais simples
             if (/^(?:\d+(?:\.\d+)?|'.*'|".*"|true|false)$/.test(expression)) {

@@ -42,6 +42,7 @@ function analyzeDocument(document) {
     const enforceCallOrder = config.get('enforceCallOrder') === true;
     const enforceAlphabeticalOrder = config.get('enforceAlphabeticalOrder') === true;
     const alphabeticalOnlyPrefixes = config.get('alphabeticalOnlyPrefixes') || [];
+    const ignoreMethods = config.get('ignoreMethods') || [];
 
     const classRegex = /(?:export\s+)?class\s+(\w+)/;
     const classMatch = classRegex.exec(text);
@@ -56,6 +57,7 @@ function analyzeDocument(document) {
     while ((mMatch = methodRegex.exec(text)) !== null) {
         const name = mMatch[1];
         if (controlKeywords.includes(name)) continue;
+        if (ignoreMethods.includes(name)) continue;
         const methodStart = mMatch.index;
         const nameStart = methodStart + mMatch[0].indexOf(name);
         methods.push({ name, start: methodStart, nameStart });
@@ -111,39 +113,52 @@ function analyzeDocument(document) {
 
     // Special case: for classes ending with configured suffix and alphabetical order enabled
     if (ignoreUnknownPrefixes && enforceAlphabeticalOrder) {
-        let lastPrefix = null;
-        let lastMethodName = null;
+    let lastPrefix = null;
+    let lastMethodName = null;
 
-        methods.forEach(m => {
-            // Extract prefix as first PascalCase segment
-            const prefixMatch = /^([A-Z][a-z]+)/.exec(m.name);
-            const prefix = prefixMatch ? prefixMatch[1] : m.name;
-
-            if (lastPrefix) {
-                if (prefix.localeCompare(lastPrefix) < 0) {
-                    const pos = document.positionAt(m.nameStart);
-                    diagnostics.push(new vscode.Diagnostic(
-                        new vscode.Range(pos, pos.translate(0, m.name.length)),
-                        `O grupo de prefixos "${prefix}" deve vir antes de "${lastPrefix}".`,
-                        vscode.DiagnosticSeverity.Warning
-                    ));
-                } else if (prefix === lastPrefix && m.name.localeCompare(lastMethodName) < 0) {
-                    const pos = document.positionAt(m.nameStart);
-                    diagnostics.push(new vscode.Diagnostic(
-                        new vscode.Range(pos, pos.translate(0, m.name.length)),
-                        `O método "${m.name}" está fora de ordem alfabética dentro do prefixo "${prefix}".`,
-                        vscode.DiagnosticSeverity.Warning
-                    ));
-                }
+    methods.forEach((m, idx) => {
+        // 🚨 Sempre ignore o constructor na ordenação
+        if (m.name === 'constructor') {
+            if (idx > 0) {
+                const pos = document.positionAt(m.nameStart);
+                diagnostics.push(new vscode.Diagnostic(
+                    new vscode.Range(pos, pos.translate(0, m.name.length)),
+                    `O "constructor" deve vir antes de todos os outros métodos.`,
+                    vscode.DiagnosticSeverity.Warning
+                ));
             }
+            return; // não atualiza lastPrefix / lastMethodName
+        }
 
-            lastPrefix = prefix;
-            lastMethodName = m.name;
-        });
+        // Extrai prefixo (primeiro segmento PascalCase)
+        const prefixMatch = /^([A-Z][a-z]+)/.exec(m.name);
+        const prefix = prefixMatch ? prefixMatch[1] : m.name;
 
-        diagnosticsCollection.set(document.uri, diagnostics);
-        return;
-    }
+        if (lastPrefix) {
+            if (prefix.localeCompare(lastPrefix) < 0) {
+                const pos = document.positionAt(m.nameStart);
+                diagnostics.push(new vscode.Diagnostic(
+                    new vscode.Range(pos, pos.translate(0, m.name.length)),
+                    `O grupo de prefixos "${prefix}" deve vir antes de "${lastPrefix}".`,
+                    vscode.DiagnosticSeverity.Warning
+                ));
+            } else if (prefix === lastPrefix && m.name.localeCompare(lastMethodName) < 0) {
+                const pos = document.positionAt(m.nameStart);
+                diagnostics.push(new vscode.Diagnostic(
+                    new vscode.Range(pos, pos.translate(0, m.name.length)),
+                    `O método "${m.name}" está fora de ordem alfabética dentro do prefixo "${prefix}".`,
+                    vscode.DiagnosticSeverity.Warning
+                ));
+            }
+        }
+
+        lastPrefix = prefix;
+        lastMethodName = m.name;
+    });
+
+    diagnosticsCollection.set(document.uri, diagnostics);
+    return;
+}
 
     // ... existing logic for call order and prefixOrder/enforceAlphabeticalOrder ...
     let lastIdx = -1;

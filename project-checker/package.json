@@ -1,7 +1,7 @@
 {
   "name": "project-checker",
   "displayName": "RL - Analisador do Projeto",
-  "publisher": "Renan Lacerda",
+  "publisher": "Renan_Lacerda",
   "description": "Detecta erros e avisos no projeto.",
   "version": "0.0.2",
   "repository": {

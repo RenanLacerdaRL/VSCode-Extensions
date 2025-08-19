@@ -2,189 +2,204 @@ const vscode = require('vscode');
 
 let diagnosticsCollection;
 
-const controlKeywords = ['if', 'for', 'while', 'switch', 'catch', 'else', 'do', 'try'];
-const controlKeywordsPattern = controlKeywords.join('|');
-
 function activate(context) {
-    diagnosticsCollection = vscode.languages.createDiagnosticCollection('methodOrder');
+    diagnosticsCollection = vscode.languages.createDiagnosticCollection('rl.method-order');
 
     if (vscode.window.activeTextEditor) {
-        updateDiagnostics(vscode.window.activeTextEditor.document);
+        analyzeDocument(vscode.window.activeTextEditor.document);
     }
 
     context.subscriptions.push(
-        vscode.window.onDidChangeActiveTextEditor(editor => {
-            if (editor) updateDiagnostics(editor.document);
-        }),
-        vscode.workspace.onDidChangeTextDocument(e => {
-            updateDiagnostics(e.document);
-        }),
+        vscode.window.onDidChangeActiveTextEditor(editor => editor && analyzeDocument(editor.document)),
+        vscode.workspace.onDidChangeTextDocument(e => analyzeDocument(e.document)),
         diagnosticsCollection
     );
 }
 
 function deactivate() {
-    if (diagnosticsCollection) {
-        diagnosticsCollection.dispose();
-    }
+    diagnosticsCollection && diagnosticsCollection.dispose();
 }
 
-function updateDiagnostics(document) {
-    const tsLangs = ['typescript', 'typescriptreact', 'javascript', 'javascriptreact'];
-    const isTS = tsLangs.includes(document.languageId);
-    const isCS = document.languageId === 'csharp';
-
-    if (!isTS && !isCS) {
+function analyzeDocument(document) {
+    const langs = ['typescript', 'typescriptreact', 'javascript', 'javascriptreact', 'csharp'];
+    if (!langs.includes(document.languageId)) {
         diagnosticsCollection.delete(document.uri);
         return;
     }
 
-    const config = vscode.workspace.getConfiguration('methodOrder');
-    const prefixOrders = config.get('prefixOrder') || [];
-
+    // Avoid matching URLs by only catching // not preceded by ':'
+    const commentRegex = /(?<!:)\/\/.*$/gm;
+    const commentPositions = [];
+    let cMatch;
     const text = document.getText();
-    const diagnostics = [];
+    while ((cMatch = commentRegex.exec(text)) !== null) {
+        commentPositions.push(cMatch.index);
+    }
 
-    const csMethodRegex = /((public|protected|internal|private)\s+)?(static\s+)?(?:void|\w+)\s+(\w+)\s*\([^)]*\)\s*\{/g;
-    const tsMethodRegex = new RegExp(
-        `^\\s*(?:public|protected|private)?\\s*(?:static\\s+)?(?:async\\s+)?(?!(${controlKeywordsPattern})\\b)(\\w+)\\s*\\([^)]*\\)\\s*(?::\\s*[\\w<>\\[\\]\\|\\s,]*)?\\s*\\{`,
-        'gm'
-    );
+    const controlKeywords = ['if', 'for', 'foreach', 'forof', 'for of', 'while', 'switch', 'catch', 'else', 'do', 'try'];
+    const config = vscode.workspace.getConfiguration('rl.method-order');
+    const prefixOrders = config.get('prefixOrder') || [];
+    const enforceCallOrder = config.get('enforceCallOrder') === true;
+    const enforceAlphabeticalOrder = config.get('enforceAlphabeticalOrder') === true;
+    const alphabeticalOnlyPrefixes = config.get('alphabeticalOnlyPrefixes') || [];
+
+    const classRegex = /(?:export\s+)?class\s+(\w+)/;
+    const classMatch = classRegex.exec(text);
+    const className = classMatch ? classMatch[1] : '';
+    const ignoreUnknownPrefixes = alphabeticalOnlyPrefixes.some(suffix => className.endsWith(suffix));
+
+//     const methodRegex = /^\s*(?:public|protected|private|internal)?\s*(?:static\s*)?(?:async\s*)?(?:[\w<>\[\],\s]+\s+)?(\w+)\s*\([^)]*\)\s*\{/gm;
+    const methodRegex = /^\s*(?:public|protected|private|internal)?\s*(?:static\s*)?(?:async\s*)?(?:[\w<>\[\],\s]+\s+)?(\w+)\s*\([^)]*\)\s*(?::\s*[\w<>\[\],\s]+)?\s*\{/gm;
 
     const methods = [];
-    let match;
-    const defRegex = isCS ? csMethodRegex : tsMethodRegex;
-    while ((match = defRegex.exec(text)) !== null) {
-        const name = isCS ? match[4] : match[2];
-        methods.push({ name, start: match.index });
+    let mMatch;
+    while ((mMatch = methodRegex.exec(text)) !== null) {
+        const name = mMatch[1];
+        if (controlKeywords.includes(name)) continue;
+        const methodStart = mMatch.index;
+        const nameStart = methodStart + mMatch[0].indexOf(name);
+        methods.push({ name, start: methodStart, nameStart });
     }
-    const definedOrder = methods.map(m => m.name);
 
-    const callMap = new Map();
-    const firstCaller = {};
-
-    for (let i = 0; i < methods.length; i++) {
-        const m = methods[i];
-        const bodyStart = text.indexOf('{', m.start);
-        let braceCount = 1, j = bodyStart + 1;
-
-        while (j < text.length && braceCount > 0) {
-            if (text[j] === '{') braceCount++;
-            else if (text[j] === '}') braceCount--;
-            j++;
-        }
-        const body = text.slice(bodyStart + 1, j - 1);
-
-        const calls = [];
-        const callRegex = /(?:this\.|(?<![\.\w]))(\w+)\s*\(/g;
-        let cm;
-        while ((cm = callRegex.exec(body)) !== null) {
-            const callee = cm[1];
-            if (definedOrder.includes(callee) && callee !== m.name) {
-                if (!calls.includes(callee)) {
-                    calls.push(callee);
-                    if (firstCaller[callee] === undefined) {
-                        firstCaller[callee] = i;
+    let callMap = new Map();
+    let firstCaller = {};
+    if (enforceCallOrder) {
+        for (let i = 0; i < methods.length; i++) {
+            const m = methods[i];
+            const bodyStart = text.indexOf('{', m.start);
+            let braceCount = 1, j = bodyStart + 1;
+            while (j < text.length && braceCount > 0) {
+                if (text[j] === '{') braceCount++;
+                else if (text[j] === '}') braceCount--;
+                j++;
+            }
+            let body = text.slice(bodyStart + 1, j - 1);
+            // Avoid stripping URLs as comments
+            body = body.replace(/(?<!:)\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+            const calls = [];
+            const callRegex = /(?:this\.|(?<![\.\w]))(\w+)\s*\(/g;
+            let cm;
+            while ((cm = callRegex.exec(body)) !== null) {
+                const callee = cm[1];
+                if (methods.some(x => x.name === callee) && callee !== m.name) {
+                    if (!calls.includes(callee)) {
+                        calls.push(callee);
+                        if (firstCaller[callee] === undefined) {
+                            firstCaller[callee] = i;
+                        }
                     }
                 }
             }
+            callMap.set(m.name, calls);
         }
-        callMap.set(m.name, calls);
     }
 
-   const blocks = {};
-    const lines = text.split('\n');
-    let currentBlock = '__DEFAULT__';
-    let blockMap = {};
-    let lastLineWasEmpty = false;
-
-    for (let i = 0; i < methods.length; i++) {
-        const m = methods[i];
-        const lineNumber = text.substring(0, m.start).split('\n').length - 1;
-
-        // Verifica se há linhas em branco antes do método
-        let hasEmptyLineBefore = false;
-        for (let l = lineNumber - 1; l >= 0; l--) {
-            const line = lines[l].trim();
-            if (line === '') {
-                hasEmptyLineBefore = true;
-                continue;
-            }
-            if (line.startsWith('//')) {
-                currentBlock = line.replace('//', '').trim();
-                break;
-            } else {
-                // Se encontrou linha não vazia e não é comentário, mantém o bloco atual
-                if (hasEmptyLineBefore) {
-                    currentBlock = `__GROUP_${l}__`; // Cria um bloco único baseado na linha
-                }
-                break;
-            }
-        }
-
-        if (!blocks[currentBlock]) blocks[currentBlock] = [];
-        blocks[currentBlock].push(methods[i]);
-        blockMap[m.name] = currentBlock;
-    }
-
-    const warned = new Set();
-    for (const [caller, calls] of callMap.entries()) {
-        if (!calls.length) continue;
-        const callerIdx = definedOrder.indexOf(caller);
-
-        for (let k = 0; k < calls.length; k++) {
-            const callee = calls[k];
-            if (firstCaller[callee] !== callerIdx) continue;
-            if (warned.has(callee)) continue;
-
-            const expected = callee;
-            const actual = definedOrder[callerIdx + 1 + k];
-
-            if (actual !== expected) {
-                const cm = methods.find(x => x.name === expected);
-                const pos = document.positionAt(cm.start);
-                const range = new vscode.Range(pos, pos.translate(0, expected.length));
-
+    const diagnostics = [];
+    if (!ignoreUnknownPrefixes) {
+        methods.forEach(m => {
+            const hasPrefix = prefixOrders.some(pref => m.name.startsWith(pref));
+            if (!hasPrefix) {
+                const pos = document.positionAt(m.nameStart);
                 diagnostics.push(new vscode.Diagnostic(
-                    range,
-                    `O método "${expected}" precisa estar abaixo de "${caller}" como chamada ${k + 1}.`,
+                    new vscode.Range(pos, pos.translate(0, m.name.length)),
+                    `Prefixo desconhecido para o método "${m.name}".`,
                     vscode.DiagnosticSeverity.Warning
                 ));
-                warned.add(callee);
             }
-        }
+        });
     }
 
-    for (const blockName of Object.keys(blocks)) {
-        const blockMethods = blocks[blockName];
-        const allCalled = new Set([].concat(...callMap.values()));
-        const uncalled = blockMethods.filter(x => !allCalled.has(x.name)).sort((a, b) => a.start - b.start);
-        const anyIdx = prefixOrders.indexOf('__ANY__');
+    // Special case: for classes ending with configured suffix and alphabetical order enabled
+    if (ignoreUnknownPrefixes && enforceAlphabeticalOrder) {
+        let lastPrefix = null;
+        let lastMethodName = null;
 
-        const withIdx = uncalled.map(x => {
-            let p = prefixOrders.findIndex(pref => x.name.startsWith(pref));
-            if (p === -1) p = anyIdx;
-            return { ...x, prefixIdx: p, suffix: x.name.toLowerCase() };
+        methods.forEach(m => {
+            // Extract prefix as first PascalCase segment
+            const prefixMatch = /^([A-Z][a-z]+)/.exec(m.name);
+            const prefix = prefixMatch ? prefixMatch[1] : m.name;
+
+            if (lastPrefix) {
+                if (prefix.localeCompare(lastPrefix) < 0) {
+                    const pos = document.positionAt(m.nameStart);
+                    diagnostics.push(new vscode.Diagnostic(
+                        new vscode.Range(pos, pos.translate(0, m.name.length)),
+                        `O grupo de prefixos "${prefix}" deve vir antes de "${lastPrefix}".`,
+                        vscode.DiagnosticSeverity.Warning
+                    ));
+                } else if (prefix === lastPrefix && m.name.localeCompare(lastMethodName) < 0) {
+                    const pos = document.positionAt(m.nameStart);
+                    diagnostics.push(new vscode.Diagnostic(
+                        new vscode.Range(pos, pos.translate(0, m.name.length)),
+                        `O método "${m.name}" está fora de ordem alfabética dentro do prefixo "${prefix}".`,
+                        vscode.DiagnosticSeverity.Warning
+                    ));
+                }
+            }
+
+            lastPrefix = prefix;
+            lastMethodName = m.name;
         });
 
-        for (let i = 0; i < withIdx.length - 1; i++) {
-            const cur = withIdx[i], nxt = withIdx[i + 1];
-            if (cur.prefixIdx > nxt.prefixIdx ||
-                (cur.prefixIdx === nxt.prefixIdx && cur.suffix > nxt.suffix)) {
-                const pos = document.positionAt(nxt.start);
-                const rng = new vscode.Range(pos, pos.translate(0, nxt.name.length));
+        diagnosticsCollection.set(document.uri, diagnostics);
+        return;
+    }
 
+    // ... existing logic for call order and prefixOrder/enforceAlphabeticalOrder ...
+    let lastIdx = -1;
+    let lastMethod = null;
+    let commentIdx = 0;
+    let lastPref = null;
+
+    methods.forEach(m => {
+        while (commentIdx < commentPositions.length && commentPositions[commentIdx] < m.start) {
+            lastIdx = -1;
+            lastMethod = null;
+            lastPref = null;
+            commentIdx++;
+        }
+
+        if (enforceCallOrder && firstCaller[m.name] !== undefined) {
+            const callerIdx = firstCaller[m.name];
+            const callerMethod = methods[callerIdx];
+            const mIdx = methods.indexOf(m);
+            if (mIdx <= callerIdx) {
+                const pos = document.positionAt(m.nameStart);
                 diagnostics.push(new vscode.Diagnostic(
-                    rng,
-                    `O método "${nxt.name}" precisa estar acima de "${cur.name}" dentro do bloco "${blockName}".`,
+                    new vscode.Range(pos, pos.translate(0, m.name.length)),
+                    `O método "${m.name}" precisa estar abaixo de "${callerMethod.name}".`,
                     vscode.DiagnosticSeverity.Warning
                 ));
             }
+            return;
         }
-    }
+
+        const idx = prefixOrders.findIndex(pref => m.name.startsWith(pref));
+        if (idx >= 0) {
+            if (lastMethod && idx < lastIdx) {
+                const pos = document.positionAt(m.nameStart);
+                diagnostics.push(new vscode.Diagnostic(
+                    new vscode.Range(pos, pos.translate(0, m.name.length)),
+                    `O método "${m.name}" precisa estar acima de "${lastMethod.name}".`,
+                    vscode.DiagnosticSeverity.Warning
+                ));
+            } else if (enforceAlphabeticalOrder && lastIdx === idx && lastPref === prefixOrders[idx]) {
+                if (m.name.localeCompare(lastMethod.name) < 0) {
+                    const pos = document.positionAt(m.nameStart);
+                    diagnostics.push(new vscode.Diagnostic(
+                        new vscode.Range(pos, pos.translate(0, m.name.length)),
+                        `O método "${m.name}" está fora de ordem alfabética dentro do prefixo "${prefixOrders[idx]}".`,
+                        vscode.DiagnosticSeverity.Warning
+                    ));
+                }
+            }
+            lastIdx = idx;
+            lastMethod = m;
+            lastPref = prefixOrders[idx];
+        }
+    });
 
     diagnosticsCollection.set(document.uri, diagnostics);
 }
 
 module.exports = { activate, deactivate };
-

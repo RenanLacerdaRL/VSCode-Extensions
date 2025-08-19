@@ -1,7 +1,7 @@
 {
     "name": "rl-method-order",
     "displayName": "RL - Ordem de Métodos",
-    "publisher": "Renan Lacerda",
+  "publisher": "Renan_Lacerda",
     "description": "Garante que os métodos em classes estejam em uma ordem lógica baseada em chamadas.",
     "version": "0.0.2",
     "repository": {
@@ -259,6 +259,12 @@
                         "items": { "type": "string" },
                         "default": [],
                         "description": "Se o último prefixo da classe estiver nessa lista, todos os métodos com prefixo devem estar apenas em ordem alfabética."
+                    },
+                    "rl.method-order.ignoreMethods": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "default": [],
+                        "description": "Lista de métodos que serão ignorados na análise de ordem."
                     }
                 }
             }

@@ -1,8 +1,8 @@
 {
   "name": "unused-symbols",
   "displayName": "RL - Analisador do Projeto",
-    "publisher": "Renan Lacerda",
   "description": "Detecta erros e avisos no projeto.",
+  "publisher": "Renan_Lacerda",
   "version": "0.0.2",
   "repository": {
     "type": "git",

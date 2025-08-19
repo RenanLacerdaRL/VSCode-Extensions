@@ -1,0 +1,99 @@
+{
+  "name": "library",
+  "displayName": "RL - Biblioteca",
+  "publisher": "Renan_Lacerda",
+  "description": "Abrir e salvar pastas em diretórios configurados da Biblioteca.",
+  "version": "0.0.2",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "engines": {
+  "vscode": "^1.60.0"
+  },
+  "icon": "icon.png",
+  "activationEvents": [
+    "onCommand:extension.openLibrary",
+    "onCommand:extension.saveAngularFrontend",
+    "onCommand:extension.saveAngularBackend",
+    "onCommand:extension.saveUnity"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "extension.openLibrary",
+        "title": "Abrir Biblioteca"
+      },
+      {
+        "command": "extension.saveAngularFrontend",
+        "title": "Angular Frontend"
+      },
+      {
+        "command": "extension.saveAngularBackend",
+        "title": "Angular Backend"
+      },
+      {
+        "command": "extension.saveUnity",
+        "title": "Unity"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "extension.openLibrary",
+          "when": "explorerResourceIsFolder"
+        },
+        {
+          "submenu": "extension.saveToLibrary",
+          "when": "explorerResourceIsFolder"
+        }
+      ],
+      "extension.saveToLibrary": [
+        {
+          "command": "extension.saveAngularFrontend"
+        },
+        {
+          "command": "extension.saveAngularBackend"
+        },
+        {
+          "command": "extension.saveUnity"
+        }
+      ]
+    },
+    "submenus": [
+      {
+        "id": "extension.saveToLibrary",
+        "label": "Salvar na Biblioteca"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Configurações da Biblioteca",
+      "properties": {
+        "rl.library.folder": {
+          "type": "string",
+          "default": "",
+          "description": "Caminho padrão da Biblioteca (usado no Abrir Biblioteca)"
+        },
+        "rl.library.angular-frontend": {
+          "type": "string",
+          "default": "",
+          "description": "Caminho para salvar projetos Angular Frontend"
+        },
+        "rl.library.angular-backend": {
+          "type": "string",
+          "default": "",
+          "description": "Caminho para salvar projetos Angular Backend"
+        },
+        "rl.library.unity": {
+          "type": "string",
+          "default": "",
+          "description": "Caminho para salvar projetos Unity"
+        }
+      }
+    }
+  }
+}
+
+

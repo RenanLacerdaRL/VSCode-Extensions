@@ -1,0 +1,49 @@
+{
+  "name": "class-icon-decorator",
+  "displayName": "RL - Classe Tooltip",
+  "description": "Exibe ícones e tooltips em classes com descrição e pacote",
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "publisher": "Renan_Lacerda",
+  "icon": "icon.png",
+  "engines": { "vscode": "^1.60.0" },
+  "categories": ["Linters"],
+  "activationEvents": [
+    "onLanguage:typescript",
+    "onLanguage:typescriptreact",
+    "onLanguage:javascript",
+    "onLanguage:javascriptreact",
+    "onLanguage:csharp"
+  ],
+  "main": "./extension.js",
+ "contributes": {
+    "configuration": {
+      "title": "Class Icon Decorations",
+      "properties": {
+        "classIcon.classInfo": {
+          "type": "array",
+          "default": [
+            ["Formatter", "Classe responsável por formatar valores."],
+            ["Configuration", "Classe de configuração de parâmetros."],
+            ["Builder", "Classe que constrói objetos complexos."],
+            ["Url", "Classe que representa URLs ou endpoints."]
+          ],
+          "description": "Lista de classes com prefixo e descrição que será exibida."
+        },
+        "classIcon.symbol": {
+          "type": "string",
+          "default": "*",
+          "description": "Símbolo exibido após o nome da classe, antes da chave {."
+        },
+        "classIcon.color": {
+          "type": "string",
+          "default": "#FFD700",
+          "description": "Cor do símbolo exibido após o nome da classe."
+        }
+      }
+    }
+  }
+}

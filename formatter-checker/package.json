@@ -1,0 +1,26 @@
+{
+    "name": "formatter-checker",
+    "displayName": "RL - Checar a Formatação",
+  "publisher": "Renan_Lacerda",
+    "description": "Verifica os métodos em classes.",
+    "version": "0.0.2",
+    "repository": {
+        "type": "git",
+        "url": ""
+    },
+    "engines": {
+        "vscode": "^1.60.0"
+    },
+    "icon": "icon.png",
+    "activationEvents": [
+        "onLanguage:typescript",
+        "onLanguage:typescriptreact",
+        "onLanguage:javascript",
+        "onLanguage:javascriptreact",
+        "onLanguage:csharp"
+    ],
+  "main": "./extension.js",
+  "contributes": {},
+  "scripts": {},
+  "devDependencies": {}
+}

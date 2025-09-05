@@ -183,7 +183,7 @@ function analyzeDocument(document) {
                 diagnostics.push(new vscode.Diagnostic(
                     new vscode.Range(pos, pos.translate(0, m.name.length)),
                     `O método "${m.name}" precisa estar abaixo de "${callerMethod.name}".`,
-                    vscode.DiagnosticSeverity.Warning
+                    vscode.DiagnosticSeverity.Hint
                 ));
             }
             return;
@@ -196,7 +196,7 @@ function analyzeDocument(document) {
                 diagnostics.push(new vscode.Diagnostic(
                     new vscode.Range(pos, pos.translate(0, m.name.length)),
                     `O método "${m.name}" precisa estar acima de "${lastMethod.name}".`,
-                    vscode.DiagnosticSeverity.Warning
+                    vscode.DiagnosticSeverity.Hint
                 ));
             } else if (enforceAlphabeticalOrder && lastIdx === idx && lastPref === prefixOrders[idx]) {
                 if (m.name.localeCompare(lastMethod.name) < 0) {

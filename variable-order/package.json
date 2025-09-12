@@ -1,0 +1,22 @@
+{
+  "name": "rl-order-checker",
+  "displayName": "RL - Ordem de Parâmetros e Variáveis",
+  "description": "Verifica ordem de uso de parâmetros e variáveis em TS/JS/C#.",
+  "publisher": "Renan_Lacerda",
+  "version": "0.0.4",
+  "engines": { "vscode": "^1.60.0" },
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "icon": "icon.png",
+  "activationEvents": [
+    "onLanguage:typescript",
+    "onLanguage:typescriptreact",
+    "onLanguage:javascript",
+    "onLanguage:javascriptreact",
+    "onLanguage:csharp"
+  ],
+  "main": "./extension.js",
+  "categories": ["Linters"]
+}

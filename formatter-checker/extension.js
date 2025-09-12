@@ -31,7 +31,9 @@ const defaultClassRules = {
     "Headers,Urls": { checkReturn: true },
     "Messages": { checkReturn: true },
     "Service": { doSomething: true },
-    "Pipe,Form,Select": { extension:true }
+    "Pipe,Form,Select": { extension:true },
+    "Data": { variables:true },
+    "Component": {expansion:true, injectable:true, manager:true }
 };
 
 function activate(context) {
@@ -282,6 +284,10 @@ function provideClassHover(document, position) {
         }
         if (rules.returnRelated) lines.push(`- O valor de retorno deve ter relação com a \`classe\`.`);
         if (rules.doSomething) lines.push(`- Métodos devem executar funções de \`objetos\`.`);
+        if (rules.variables) lines.push(`- Métodos só devem executar funções relacionadas as \`variaveis\`.`);
+        if (rules.expansion) lines.push(`- Se existir mais de uma variável do mesmo tipo, devem estar na expanção do \`componente\`.`);
+        if (rules.injectable) lines.push(`- Classes que não são \`injectables\` ou \`statics\` devem ser expanções do \`componente\`.`);
+        if (rules.manager) lines.push(`- Métodos só devem executar funções \`sequenciais\` nunca calculando algo.`);
         if (rules.extension) lines.push(`- A classe pertence a uma \`extensão\` ou \`implementação\`.`);
         if (rules.useError) lines.push(`- Usar \`Error\` caso não encontre o valor.`);
         if (rules.throwAll) lines.push(`- Usar \`throw\` em todos os métodos.`);

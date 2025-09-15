@@ -36,132 +36,253 @@ function checkDocument(doc) {
 
 // ---------- JS/TS ----------
 function analyzeJsTs(text, diagnostics, doc) {
+    // patterns: função declarada com 'function' e métodos (nome(params) { ... })
     const patterns = [
-        /(?:async\s+)?function\s+\w*\s*\(([^)]*)\)\s*\{([\s\S]*?)\}/g,            // function foo(...)
-        /(?:async\s+)?(\w+)\s*\(([^)]*)\)\s*\{([\s\S]*?)\}/g                     // class Foo { bar(...) { ... } }
+        /(?:async\s+)?function\s+\w*\s*\(([^)]*)\)\s*/g,     // function foo(...) { }
+        /(?:async\s+)?([A-Za-z_]\w*)\s*\(([^)]*)\)\s*/g       // foo(...) { }  (métodos/declarações)
     ];
+
+    const keywordBlacklist = new Set(['if','for','while','switch','catch','with','else','try']);
 
     for (const re of patterns) {
         let m;
         while ((m = re.exec(text)) !== null) {
-            const paramsRaw = (re === patterns[0]) ? m[1] : m[2];
-            const bodyRaw   = (re === patterns[0]) ? m[2] : m[3];
-            const bodyOffset = m.index + m[0].lastIndexOf('{') + 1;
-
-            const params = cleanParams(paramsRaw);
-            // parametros: checa ordem (não precisa ignorar declarações porque params não estão no body)
-            if (params.length > 1) checkOrder(params, bodyRaw, bodyOffset, diagnostics, doc, 'Parâmetro', []);
-
-            // variáveis locais: captura declarações e suas posições EXATAS do nome
-            const decls = findVarDecls(bodyRaw, bodyOffset, /\b(const|let|var)\s+([a-zA-Z_$][\w$]*)/g);
-            if (decls.length > 1) {
-                const names = decls.map(x => x.name);
-                // passamos a lista de posições de declaração para serem ignoradas na busca de ocorrências
-                const declPositions = decls.map(d => ({ name: d.name, pos: d.pos, len: d.name.length }));
-                checkOrder(names, bodyRaw, bodyOffset, diagnostics, doc, 'Variável', declPositions);
+            // para o segundo padrão, evitar palavras-chave (if/for/while etc)
+            if (re === patterns[1]) {
+                const possibleName = m[1];
+                if (!possibleName || keywordBlacklist.has(possibleName)) continue;
             }
+
+            const paramsRaw = (re === patterns[0]) ? m[1] : m[2];
+
+            const signatureEnd = m.index + m[0].length;
+            // agora procuramos o próximo CHAR que não seja whitespace/nem comentário
+            const nxt = findNextNonSpaceNonCommentChar(text, signatureEnd);
+            if (!nxt || nxt.ch !== '{') continue; // se não houver '{' logo após, não é método
+            const braceOpen = nxt.pos;
+            const braceClose = findMatchingBrace(text, braceOpen);
+            if (braceClose === -1) continue;
+
+            const bodyRaw = text.substring(braceOpen + 1, braceClose);
+            const bodyOffset = braceOpen + 1;
+
+            processMethod(bodyRaw, bodyOffset, paramsRaw, diagnostics, doc);
         }
     }
 }
 
 // ---------- C# ----------
 function analyzeCSharp(text, diagnostics, doc) {
-    // métodos: (modifiers)? returnType Name(type p1, type p2) { ... }
-    const methodRe = /\b(?:public|private|protected|internal)?\s*(?:static\s+)?(?:async\s+)?[\w<>,\s\?\[\]]+\s+(\w+)\s*\(([^)]*)\)\s*\{([\s\S]*?)\}/g;
+    const methodRe = /\b(?:public|private|protected|internal)?\s*(?:static\s+)?(?:async\s+)?[\w<>,\s\?\[\]]+\s+(\w+)\s*\(([^)]*)\)\s*/g;
 
     let m;
     while ((m = methodRe.exec(text)) !== null) {
         const paramsRaw = m[2];
-        const bodyRaw   = m[3];
-        const bodyOffset = m.index + m[0].lastIndexOf('{') + 1;
 
-        const params = paramsRaw
-            .split(',')
-            .map(p => p.trim().split(' ').pop()) // pega o nome (último token)
-            .filter(Boolean);
-        if (params.length > 1) checkOrder(params, bodyRaw, bodyOffset, diagnostics, doc, 'Parâmetro', []);
+        const signatureEnd = m.index + m[0].length;
+        const nxt = findNextNonSpaceNonCommentChar(text, signatureEnd);
+        if (!nxt || nxt.ch !== '{') continue;
+        const braceOpen = nxt.pos;
+        if (braceOpen === -1) continue;
+        const braceClose = findMatchingBrace(text, braceOpen);
+        if (braceClose === -1) continue;
 
-        // variáveis locais: detecta declarações do tipo "var x = ..." ou "int x = ..." etc
-        const decls = findVarDecls(
-            bodyRaw,
-            bodyOffset,
-            /\b(?:var|int|float|double|string|bool|decimal|object|dynamic|long|short|byte|char)\s+([a-zA-Z_]\w*)\s*=/g
-        );
-        if (decls.length > 1) {
-            const names = decls.map(x => x.name);
-            const declPositions = decls.map(d => ({ name: d.name, pos: d.pos, len: d.name.length }));
-            checkOrder(names, bodyRaw, bodyOffset, diagnostics, doc, 'Variável', declPositions);
-        }
+        const bodyRaw = text.substring(braceOpen + 1, braceClose);
+        const bodyOffset = braceOpen + 1;
+
+        processMethod(bodyRaw, bodyOffset, paramsRaw, diagnostics, doc, true);
     }
 }
 
-// ---------- UTILS ----------
+// ---------- PROCESSA UM MÉTODO POR VEZ ----------
+function processMethod(bodyRaw, bodyOffset, paramsRaw, diagnostics, doc, isCSharp=false) {
+    // --- PARÂMETROS ---
+    let params = [];
+    if (isCSharp) {
+        params = paramsRaw.split(',')
+            .map(p => p.trim().split(' ').pop())
+            .filter(Boolean);
+    } else {
+        params = cleanParams(paramsRaw);
+    }
+
+    // --- VARIÁVEIS LOCAIS (apenas dentro deste método) ---
+    // Limpa comentários e strings para evitar falsos positivos ao coletar declarações
+    const cleanedBody = stripCommentsAndStrings(bodyRaw);
+    const decls = findVarDecls(cleanedBody, bodyOffset);
+    const varNames = decls.map(d => d.name).filter(n => !params.includes(n));
+
+    // --- CHECAGEM DE ORDEM ---
+    if (params.length > 1) checkOrder(params, bodyRaw, bodyOffset, diagnostics, doc, 'Parâmetro', []);
+    if (varNames.length > 1) checkOrder(varNames, bodyRaw, bodyOffset, diagnostics, doc, 'Variável', decls);
+}
+
+// ---------- UTIL ----------
+
+// encontra o próximo caractere que não seja whitespace ou comentário (retorna pos e ch)
+function findNextNonSpaceNonCommentChar(text, posStart) {
+    const len = text.length;
+    let i = posStart;
+    while (i < len) {
+        const ch = text[i];
+        // whitespace
+        if (/\s/.test(ch)) { i++; continue; }
+
+        // line comment //
+        if (ch === '/' && text[i+1] === '/') {
+            i += 2;
+            while (i < len && text[i] !== '\n') i++;
+            continue;
+        }
+
+        // block comment /* */
+        if (ch === '/' && text[i+1] === '*') {
+            i += 2;
+            while (i < len && !(text[i] === '*' && text[i+1] === '/')) i++;
+            i += 2;
+            continue;
+        }
+
+        return { pos: i, ch };
+    }
+    return null;
+}
+
+function stripCommentsAndStrings(text) {
+    return text
+        .replace(/\/\*[\s\S]*?\*\//g, '')    // /* ... */
+        .replace(/\/\/.*$/mg, '')           // // ...
+        .replace(/(['"`])(?:\\.|(?!\1).)*\1/g, ''); // "..." '...' `...`
+}
+
+function findVarDecls(cleanedBody, bodyOffset) {
+    const decls = [];
+    const regex = /\b(?:const|let|var)\s+([A-Za-z_]\w*)\s*=/g;
+    let m;
+    while ((m = regex.exec(cleanedBody)) !== null) {
+        const name = m[1];
+        const pos = bodyOffset + m.index + m[0].indexOf(name);
+        decls.push({ name, pos, len: name.length });
+    }
+    return decls;
+}
+
+function findMatchingBrace(text, openIndex) {
+    const len = text.length;
+    let depth = 0;
+    for (let i = openIndex; i < len; i++) {
+        const ch = text[i];
+
+        // strings
+        if (ch === '"' || ch === "'" || ch === '`') {
+            const quote = ch;
+            i++;
+            while (i < len) {
+                if (text[i] === '\\') { i += 2; continue; }
+                if (text[i] === quote) break;
+                i++;
+            }
+            continue;
+        }
+
+        // line comment //
+        if (ch === '/' && text[i+1] === '/') {
+            i += 2;
+            while (i < len && text[i] !== '\n') i++;
+            continue;
+        }
+
+        // block comment /* */
+        if (ch === '/' && text[i+1] === '*') {
+            i += 2;
+            while (i < len && !(text[i] === '*' && text[i+1] === '/')) i++;
+            i += 1;
+            continue;
+        }
+
+        if (ch === '{') { depth++; continue; }
+        if (ch === '}') { depth--; if (depth === 0) return i; continue; }
+    }
+    return -1;
+}
 
 function cleanParams(raw) {
     return raw
         .split(',')
         .map(p => p.trim().split(':')[0].split('=')[0].trim())
-        .map(p => p.replace(/^[\[\{].*[\}\]]$/,'').trim()) // remove destruturing feio
+        .map(p => p.replace(/^[\[\{].*[\}\]]$/,'').trim())
         .filter(Boolean);
 }
 
-/**
- * Retorna lista de { name, pos } onde pos é a posição absoluta (document) da aparição do NOME na declaração.
- * Isso permite ignorar essa ocorrência quando buscarmos usos reais no corpo.
- */
-function findVarDecls(bodyRaw, bodyOffset, regex) {
-    const decls = [];
-    let d;
-    while ((d = regex.exec(bodyRaw)) !== null) {
-        const name = d[d.length - 1];
-        const full = d[0];
-        const nameIndexInFull = full.indexOf(name);
-        const namePos = bodyOffset + d.index + nameIndexInFull;
-        decls.push({ name, pos: namePos });
+function findVariableUsages(body, variableName, bodyOffset) {
+    const usages = [];
+    const pattern = new RegExp(`\\b${escapeRegExp(variableName)}\\b`, 'g');
+
+    let match;
+    while ((match = pattern.exec(body)) !== null) {
+        const before = body.substring(0, match.index);
+        const isDeclaration = /\b(const|let|var|[A-Za-z_]\w*)\s+$/.test(before);
+        if (!isDeclaration) usages.push(bodyOffset + match.index);
     }
-    return decls;
+
+    return usages;
 }
 
-/**
- * names: [nome1, nome2, ...] (ordem de declaração)
- * bodyRaw, bodyOffset: corpo + offset absoluto
- * declPositions: lista [{name,pos,len}] para excluir matches que sejam parte da declaração
- *
- * Regra implementada:
- * - percorre todas as ocorrências REAIS (excluindo declarações)
- * - quando encontra a primeira ocorrência de uma variável X,
- *   verifica se TODAS as variáveis declaradas antes de X já tiveram primeira-uso;
- *   se não, avisa apontando a ocorrência atual.
- */
 function checkOrder(names, bodyRaw, bodyOffset, diagnostics, doc, label, declPositions) {
-    // normaliza declPositions para fácil checagem
-    const declPosMap = (declPositions || []);
+    names = names.filter(n => /^[A-Za-z_]\w*$/.test(n) && n !== 'form');
+    if (!names.length) return;
 
-    // coleta todas as ocorrências no body (posição absoluta), excluindo-as se coincidirem com uma declaração
-    const occurrences = [];
-    for (const n of names) {
-        const reg = new RegExp(`\\b${escapeRegExp(n)}\\b`, 'g');
-        let u;
-        while ((u = reg.exec(bodyRaw)) !== null) {
-            const posAbs = bodyOffset + u.index;
-            // ver se cai sobre alguma declaração (mesma posição do nome declarado)
-            const isDeclaration = declPosMap.some(d => posAbs >= d.pos && posAbs < d.pos + (d.len || d.name.length));
-            if (!isDeclaration) occurrences.push({ name: n, pos: posAbs });
+    const declPosMap = (declPositions || []).filter(d => names.includes(d.name));
+
+    // comentários e strings
+    const commentRanges = [];
+    let m;
+    const lineCommentRe = /\/\/.*$/mg;
+    while ((m = lineCommentRe.exec(bodyRaw)) !== null)
+        commentRanges.push([bodyOffset + m.index, bodyOffset + m.index + m[0].length]);
+    const blockCommentRe = /\/\*[\s\S]*?\*\//g;
+    while ((m = blockCommentRe.exec(bodyRaw)) !== null)
+        commentRanges.push([bodyOffset + m.index, bodyOffset + m.index + m[0].length]);
+
+    const stringRanges = [];
+    for (let i = 0; i < bodyRaw.length; i++) {
+        const ch = bodyRaw[i];
+        if (ch === '\'' || ch === '"' || ch === '`') {
+            const quote = ch;
+            const start = i;
+            i++;
+            while (i < bodyRaw.length) {
+                if (bodyRaw[i] === '\\') { i += 2; continue; }
+                if (bodyRaw[i] === quote) break;
+                i++;
+            }
+            const end = Math.min(i, bodyRaw.length-1);
+            stringRanges.push([bodyOffset + start, bodyOffset + end + 1]);
         }
     }
 
-    // ordenar por posição no arquivo
+    const inRanges = (pos, ranges) => ranges.some(r => pos >= r[0] && pos < r[1]);
+
+    // ocorrências
+    const occurrences = [];
+    for (const n of names) {
+        const usages = findVariableUsages(bodyRaw, n, bodyOffset);
+        for (const posAbs of usages) {
+            const isDecl = declPosMap.some(d => posAbs >= d.pos && posAbs < d.pos + (d.len || d.name.length));
+            const inComment = inRanges(posAbs, commentRanges);
+            const inString = inRanges(posAbs, stringRanges);
+            if (!isDecl && !inComment && !inString) occurrences.push({ name: n, pos: posAbs });
+        }
+    }
+
     occurrences.sort((a,b) => a.pos - b.pos);
 
     const firstUsed = new Set();
-
     for (const occ of occurrences) {
         if (!firstUsed.has(occ.name)) {
             const idx = names.indexOf(occ.name);
-            if (idx === -1) { firstUsed.add(occ.name); continue; }
-            // todas as variáveis declaradas antes devem já ter sido usadas
             const notUsedBefore = names.slice(0, idx).filter(n => !firstUsed.has(n));
-            if (notUsedBefore.length > 0) {
+            if (notUsedBefore.length) {
                 const range = new vscode.Range(
                     doc.positionAt(occ.pos),
                     doc.positionAt(occ.pos + occ.name.length)

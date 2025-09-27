@@ -97,19 +97,22 @@ function analyzeDocument(document) {
     }
 
     const diagnostics = [];
-    if (!ignoreUnknownPrefixes) {
-        methods.forEach(m => {
-            const hasPrefix = prefixOrders.some(pref => m.name.startsWith(pref));
-            if (!hasPrefix) {
-                const pos = document.positionAt(m.nameStart);
-                diagnostics.push(new vscode.Diagnostic(
-                    new vscode.Range(pos, pos.translate(0, m.name.length)),
-                    `Prefixo desconhecido para o método "${m.name}".`,
-                    vscode.DiagnosticSeverity.Warning
-                ));
-            }
-        });
-    }
+if (!ignoreUnknownPrefixes) {
+    methods.forEach(m => {
+        // >>> IGNORAR quando o método tiver o mesmo nome da classe <<<
+        if (m.name === className) return;
+
+        const hasPrefix = prefixOrders.some(pref => m.name.startsWith(pref));
+        if (!hasPrefix) {
+            const pos = document.positionAt(m.nameStart);
+            diagnostics.push(new vscode.Diagnostic(
+                new vscode.Range(pos, pos.translate(0, m.name.length)),
+                `Prefixo desconhecido para o método "${m.name}".`,
+                vscode.DiagnosticSeverity.Warning
+            ));
+        }
+    });
+}
 
     // Special case: for classes ending with configured suffix and alphabetical order enabled
     if (ignoreUnknownPrefixes && enforceAlphabeticalOrder) {
@@ -147,7 +150,7 @@ function analyzeDocument(document) {
                 diagnostics.push(new vscode.Diagnostic(
                     new vscode.Range(pos, pos.translate(0, m.name.length)),
                     `O método "${m.name}" está fora de ordem alfabética dentro do prefixo "${prefix}".`,
-                    vscode.DiagnosticSeverity.Warning
+                    vscode.DiagnosticSeverity.Hint
                 ));
             }
         }
@@ -204,7 +207,7 @@ function analyzeDocument(document) {
                     diagnostics.push(new vscode.Diagnostic(
                         new vscode.Range(pos, pos.translate(0, m.name.length)),
                         `O método "${m.name}" está fora de ordem alfabética dentro do prefixo "${prefixOrders[idx]}".`,
-                        vscode.DiagnosticSeverity.Warning
+                        vscode.DiagnosticSeverity.Hint
                     ));
                 }
             }

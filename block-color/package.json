@@ -32,6 +32,11 @@
           "default": true,
           "description": "Exibir borda nos blocos"
         },
+        "rl.block-color.allowPlainBlock": {
+          "type": "boolean",
+          "default": false,
+          "description": "Bloco automático"
+        },
         "rl.block-color.defaultColor": {
           "type": "string",
           "default": "#cccccc",

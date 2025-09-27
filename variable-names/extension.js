@@ -219,8 +219,11 @@ function updateDiagnostics(document) {
             const expr   = am[2].trim();
 
             // reutiliza as mesmas fases de ignorar literais, regex, lista de exceções etc.
-            if (/^-?\d+(?:\.\d+)?[fFdD]?$/i.test(expr)) continue;
-            if (/^(true|false)$/i.test(expr)) continue;
+            if (/^-?\d+(?:\.\d+)?[fFdD]?$/i.test(expr)) continue;         // números
+            if (/^(true|false)$/i.test(expr)) continue;                   // booleanos
+            if (/^(['"`]).*\1$/.test(expr)) continue;                     // strings simples
+            if (expr.includes('$') && /\{[^}]+\}/.test(expr)) continue;
+
 
             if (expr.toLowerCase().includes('regex'))              continue;
             if (ignoreList.some(w => expr.toLowerCase().includes(w.toLowerCase()))) continue;

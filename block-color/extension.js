@@ -17,7 +17,8 @@ function getConfig() {
         enableDefinedMethodColor: cfg.get('enableDefinedMethodColor', true),
         enableDecoratorColor: cfg.get('enableDecoratorColor', true),
         ignoreEnums: cfg.get('ignoreEnums', true),
-        ignoredPrefixes: cfg.get('ignoredPrefixes', [])
+        ignoredPrefixes: cfg.get('ignoredPrefixes', []),
+        allowPlainBlock: cfg.get('allowPlainBlock', false)
     };
 }
 
@@ -68,7 +69,7 @@ function createTopDecoration(color, showBg, showBorder) {
     return vscode.window.createTextEditorDecorationType({
         isWholeLine: true,
         ...(showBorder && {
-            borderWidth: '2px 2px 0 2px',
+            borderWidth: '1px 1px 0 1px',
             borderStyle: 'solid',
             borderColor: color,
             borderRadius: '4px 4px 0 0'
@@ -81,7 +82,7 @@ function createMiddleDecoration(color, showBg, showBorder) {
     return vscode.window.createTextEditorDecorationType({
         isWholeLine: true,
         ...(showBorder && {
-            borderWidth: '0 2px 0 2px',
+            borderWidth: '0 1px 0 1px',
             borderStyle: 'solid',
             borderColor: color
         }),
@@ -93,7 +94,7 @@ function createBottomDecoration(color, showBg, showBorder) {
     return vscode.window.createTextEditorDecorationType({
         isWholeLine: true,
         ...(showBorder && {
-            borderWidth: '0 2px 2px 2px',
+            borderWidth: '0 1px 1px 1px',
             borderStyle: 'solid',
             borderColor: color,
             borderRadius: '0 0 4px 4px'
@@ -128,7 +129,7 @@ function getImportedEnumNames(lines) {
 
 // Função principal
 function updateDecorations(editor) {
-    const config = getConfig();
+   const config = getConfig();
     const {
         showBackground,
         showBorder,
@@ -142,7 +143,8 @@ function updateDecorations(editor) {
         enableDefinedMethodColor,
         enableDecoratorColor,
         ignoreEnums,
-        ignoredPrefixes
+        ignoredPrefixes,
+        allowPlainBlock               // <── NOVO
     } = config;
 
     const doc = editor.document;
@@ -151,18 +153,48 @@ function updateDecorations(editor) {
     decorationTypes.forEach(d => d.dispose());
     decorationTypes = [];
 
-    // Blocos via comentários
-    const reHex = /^(\s*)\/\/.*?\{\s*(#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}))\s*\}/;
-    const reDefault = /^(\s*)\/\/.*?#([A-Z][\w]*)\b/;
-    const starts = [];
+    // --- Ajuste das regex ---
+const reHex = /^(\s*)\/\/.*?\{\s*(#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}))\s*\}/;
+const reDefault = /^(\s*)\/\/.*?#([A-Z][\w]*)\b/;
+const rePlain = /^(\s*)\/\/\s*([A-Z][\w]*)\b/; // se allowPlainBlock
 
-    lines.forEach((ln, idx) => {
+const starts = [];
+
+let braceDepth = 0;
+let classDepth = 0;
+
+lines.forEach((ln, idx) => {
+    // Atualiza profundidade antes de checar comentários
+    if (/\bclass\b/.test(ln)) {
+        // Encontrou declaração de classe
+        classDepth++;
+    }
+
+    // Conta chaves da linha (simples, mas cobre casos comuns)
+    const openCount = (ln.match(/{/g) || []).length;
+    const closeCount = (ln.match(/}/g) || []).length;
+    braceDepth += openCount - closeCount;
+
+    // Só considera comentários se dentro de uma classe e fora de métodos
+    if (classDepth > 0 && braceDepth === 1) {
         const mHex = reHex.exec(ln);
         const mDefault = reDefault.exec(ln);
 
-        if (mHex) starts.push({ line: idx, color: mHex[2] });
-        else if (mDefault) starts.push({ line: idx, color: defaultColor });
-    });
+        if (mHex) {
+            starts.push({ line: idx, color: mHex[2] });
+        } else if (mDefault) {
+            starts.push({ line: idx, color: defaultColor });
+        } else if (allowPlainBlock) {
+            const mPlain = rePlain.exec(ln);
+            if (mPlain) starts.push({ line: idx, color: defaultColor });
+        }
+    }
+
+    // Se saímos totalmente da classe, zera
+    if (classDepth > 0 && braceDepth === 0) {
+        classDepth = 0;
+    }
+});
 
     for (let k = 0; k < starts.length; k++) {
         const { line: startLine, color } = starts[k];

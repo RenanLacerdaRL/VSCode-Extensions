@@ -109,14 +109,7 @@ function processMethod(bodyRaw, bodyOffset, paramsRaw, diagnostics, doc, isCShar
     // --- VARIÁVEIS LOCAIS (apenas dentro deste método) ---
     // Limpa comentários e strings para evitar falsos positivos ao coletar declarações
     const cleanedBody = stripCommentsAndStrings(bodyRaw);
-
-    let decls;
-    if (isCSharp) {
-        decls = findVarDeclsCSharp(cleanedBody, bodyOffset);
-    } else {
-        decls = findVarDecls(cleanedBody, bodyOffset);
-    }
-
+    const decls = findVarDecls(cleanedBody, bodyOffset);
     const varNames = decls.map(d => d.name).filter(n => !params.includes(n));
 
     // --- CHECAGEM DE ORDEM ---
@@ -156,12 +149,10 @@ function findNextNonSpaceNonCommentChar(text, posStart) {
 }
 
 function stripCommentsAndStrings(text) {
-    // substitui comentários/strings por espaços de mesmo comprimento para
-    // preservar índices e permitir cálculos de posição/profundidade corretos
     return text
-        .replace(/\/\*[\s\S]*?\*\//g, match => ' '.repeat(match.length))    // /* ... */
-        .replace(/\/\/.*$/mg, match => ' '.repeat(match.length))           // // ...
-        .replace(/(['"`])(?:\\.|(?!\1).)*\1/g, match => ' '.repeat(match.length)); // "..." '...' `...`
+        .replace(/\/\*[\s\S]*?\*\//g, '')    // /* ... */
+        .replace(/\/\/.*$/mg, '')           // // ...
+        .replace(/(['"`])(?:\\.|(?!\1).)*\1/g, ''); // "..." '...' `...`
 }
 
 function findVarDecls(cleanedBody, bodyOffset) {
@@ -172,46 +163,6 @@ function findVarDecls(cleanedBody, bodyOffset) {
         const name = m[1];
         const pos = bodyOffset + m.index + m[0].indexOf(name);
         decls.push({ name, pos, len: name.length });
-    }
-    return decls;
-}
-
-// ---------- ALTERAÇÃO: findVarDeclsCSharp agora grava blockStart em absoluto ----------
-function findVarDeclsCSharp(cleanedBody, bodyOffset) {
-    const decls = [];
-    const regex = /\b(?:[A-Za-z_][\w<>.,\s\[\]]*\s+)([A-Za-z_]\w*)\s*=/g;
-
-    // Varremos mantendo uma pilha dinâmica para saber qual '{' está aberto em cada posição
-    const dynamicStack = [];
-    let lastIndex = 0;
-
-    regex.lastIndex = 0;
-    let m;
-    while ((m = regex.exec(cleanedBody)) !== null) {
-        // Avança a pilha de lastIndex até m.index
-        for (let i = lastIndex; i < m.index; i++) {
-            const ch = cleanedBody[i];
-            if (ch === '{') dynamicStack.push(i);
-            else if (ch === '}') if (dynamicStack.length) dynamicStack.pop();
-        }
-        lastIndex = m.index;
-
-        const name = m[1];
-        const matchText = m[0];
-        const nameIndexInMatch = matchText.lastIndexOf(name);
-        const absPos = bodyOffset + m.index + nameIndexInMatch;
-
-        const blockStartRel = dynamicStack.length ? dynamicStack[dynamicStack.length - 1] : 0;
-        const blockStartAbs = bodyOffset + blockStartRel; // armazenamos absoluto
-        const blockDepth = dynamicStack.length;
-
-        decls.push({
-            name,
-            pos: absPos,            // absoluto
-            len: name.length,
-            depth: blockDepth,
-            blockStart: blockStartAbs // absoluto
-        });
     }
     return decls;
 }
@@ -276,8 +227,6 @@ function findVariableUsages(body, variableName, bodyOffset) {
 
     return usages;
 }
-
-// ---------- ALTERAÇÃO: checkOrder agrupa por depth+blockStart absoluto ----------
 function checkOrder(names, bodyRaw, bodyOffset, diagnostics, doc, label, declPositions) {
     // Filtra nomes válidos
     names = names.filter(n => /^[A-Za-z_]\w*$/.test(n) && n !== 'form');
@@ -287,11 +236,11 @@ function checkOrder(names, bodyRaw, bodyOffset, diagnostics, doc, label, declPos
 
     // Identifica o tipo de retorno na assinatura do método
     const returnType = getReturnType(bodyRaw);
-    if (returnType && names.includes(returnType) === false) {
+    if (returnType) {
         names.push(returnType);
     }
 
-    // --- Pré-calcula ranges de comentários e strings (usados para ignorar matches) ---
+    // --- Comentários e strings ---
     const commentRanges = [];
     let m;
     const lineCommentRe = /\/\/.*$/mg;
@@ -313,112 +262,43 @@ function checkOrder(names, bodyRaw, bodyOffset, diagnostics, doc, label, declPos
                 if (bodyRaw[i] === quote) break;
                 i++;
             }
-            const end = Math.min(i, bodyRaw.length - 1);
+            const end = Math.min(i, bodyRaw.length-1);
             stringRanges.push([bodyOffset + start, bodyOffset + end + 1]);
         }
     }
 
     const inRanges = (pos, ranges) => ranges.some(r => pos >= r[0] && pos < r[1]);
 
-    // --- Agrupa nomes por depth+blockStart (somente aqueles que têm declPositions) ---
-    const groups = new Map(); // key "depth_blockStartAbs" -> array of decl objects
-    for (const d of declPosMap) {
-        const key = `${d.depth}_${d.blockStart}`;
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key).push(d);
-    }
+    // --- Encontra primeiras ocorrências válidas ---
+    const usagePositions = names.map(name => {
+        const pattern = new RegExp(`\\b${escapeRegExp(name)}\\b`, 'g');
+        let match;
+        while ((match = pattern.exec(bodyRaw)) !== null) {
+            const absPos = bodyOffset + match.index;
+            const isDecl = declPosMap.some(d => absPos >= d.pos && absPos < d.pos + (d.len || d.name.length));
+            const inComment = inRanges(absPos, commentRanges);
+            const inString = inRanges(absPos, stringRanges);
+            if (!isDecl && !inComment && !inString) return absPos;
+        }
+        return Infinity; // Nunca usado
+    });
 
-    // helper: detecta se o bloco que começa em relBlockStart (índice relativo ao bodyRaw)
-    // tem um cabeçalho condicional (if/for/foreach/while/switch/catch/else) imediatamente antes.
-    function isBlockConditional(relBlockStart) {
-        const startScan = Math.max(0, relBlockStart - 64); // um pouco mais de contexto
-        const snippet = bodyRaw.substring(startScan, relBlockStart).trimEnd();
-        const m = snippet.match(/(\b(?:if|for|foreach|while|switch|catch|else))\b\s*(?:\(|$)/i);
-        return !!m;
-    }
-
-    // Processa cada grupo (mesmo depth e mesmo bloco) separadamente
-    for (const [key, groupDecls] of groups.entries()) {
-        if (groupDecls.length <= 1) continue;
-
-        // Para cada declaração do grupo, encontra a primeira ocorrência "válida"
-        // (mesmo bloco, não em comentário/string/decl), ignorando ocorrências em blocos condicionais.
-        const usagePositions = groupDecls.map(dinfo => {
-            const name = dinfo.name;
-            const declDepth = dinfo.depth;
-            const declBlockStart = dinfo.blockStart; // absoluto
-
-            const pattern = new RegExp(`\\b${escapeRegExp(name)}\\b`, 'g');
-            let match;
-            while ((match = pattern.exec(bodyRaw)) !== null) {
-                // ignora quando o match faz parte de um acesso por ponto: playerTransform.localScale
-                const prevIndex = match.index - 1;
-                if (prevIndex >= 0) {
-                    const prevCh = bodyRaw[prevIndex];
-                    if (prevCh === '.') continue;
-                }
-
-                const relIndex = match.index;             // índice relativo ao bodyRaw
-                const absPos = bodyOffset + relIndex;     // posição absoluta no documento
-
-                // calcula pilha de '{' até relIndex para obter depth e blockStart corretos (em absoluto)
-                const stack = [];
-                for (let i = 0; i < relIndex; i++) {
-                    const ch = bodyRaw[i];
-                    if (ch === '{') stack.push(i);
-                    else if (ch === '}') { if (stack.length) stack.pop(); }
-                }
-                const matchDepth = stack.length;
-                const matchBlockStart = stack.length ? (bodyOffset + stack[stack.length - 1]) : bodyOffset; // absoluto
-
-                const isDecl = declPositions.some(d => absPos >= d.pos && absPos < d.pos + (d.len || d.name.length));
-                const inComment = inRanges(absPos, commentRanges);
-                const inString = inRanges(absPos, stringRanges);
-
-                // Se este match está dentro de um bloco condicional (ex: if) então
-                // NÃO usamos essa ocorrência para estabelecer ordem (evita falsos positivos).
-                const relBlockStart = matchBlockStart - bodyOffset;
-                if (matchDepth > 0 && isBlockConditional(relBlockStart)) {
-                    continue;
-                }
-
-                // só conta se for do mesmo depth E do mesmo bloco (blockStart em absoluto),
-                // e não estiver em comment/string/decl
-                if (!isDecl && !inComment && !inString && matchDepth === declDepth && matchBlockStart === declBlockStart) {
-                    return absPos;
-                }
-            }
-            return Infinity;
-        });
-
-        // --- Filtra entradas que realmente têm uma ocorrência válida (não Infinity) ---
-        const entries = groupDecls.map((d, i) => ({ decl: d, pos: usagePositions[i] }))
-                                  .filter(e => Number.isFinite(e.pos));
-
-        // se sobrar 0 ou 1 variável com ocorrência válida, nada a checar
-        if (entries.length <= 1) continue;
-
-        // --- Verifica ordem estrita apenas entre as variáveis com ocorrência válida ---
-        for (let i = 1; i < entries.length; i++) {
-            if (entries[i].pos < entries[i - 1].pos) {
-                const name = entries[i].decl.name;
-                const prevName = entries[i - 1].decl.name;
-                const range = new vscode.Range(
-                    doc.positionAt(entries[i].pos),
-                    doc.positionAt(entries[i].pos + name.length)
-                );
-                diagnostics.push(new vscode.Diagnostic(
-                    range,
-                    `${label} "${name}" foi usada antes de ${prevName} ter sido usada.`,
-                    vscode.DiagnosticSeverity.Warning
-                ));
-            }
+    // --- Verifica ordem estrita ---
+    for (let i = 1; i < usagePositions.length; i++) {
+        if (usagePositions[i] < usagePositions[i - 1]) {
+            const name = names[i];
+            const range = new vscode.Range(
+                doc.positionAt(usagePositions[i]),
+                doc.positionAt(usagePositions[i] + name.length)
+            );
+            diagnostics.push(new vscode.Diagnostic(
+                range,
+                `${label} "${name}" foi usada antes de ${names[i - 1]} ter sido usada.`,
+                vscode.DiagnosticSeverity.Warning
+            ));
         }
     }
 }
-
-
-
 
 // Função auxiliar para identificar o tipo de retorno na assinatura do método
 function getReturnType(bodyRaw) {

@@ -1,221 +1,45 @@
+// extension.js
 const vscode = require('vscode');
 
-let diagnosticsCollection;
+let diagnosticCollection = null;
 
 function activate(context) {
-    diagnosticsCollection = vscode.languages.createDiagnosticCollection('orderChecker');
-    context.subscriptions.push(diagnosticsCollection);
-
-    vscode.workspace.onDidOpenTextDocument(checkDocument, null, context.subscriptions);
-    vscode.workspace.onDidChangeTextDocument(e => checkDocument(e.document), null, context.subscriptions);
+    diagnosticCollection = vscode.languages.createDiagnosticCollection('localVarOrder');
+    context.subscriptions.push(diagnosticCollection);
 
     if (vscode.window.activeTextEditor) {
-        checkDocument(vscode.window.activeTextEditor.document);
+        analyzeDocument(vscode.window.activeTextEditor.document);
     }
+
+    context.subscriptions.push(
+        vscode.workspace.onDidOpenTextDocument(doc => analyzeDocument(doc)),
+        vscode.workspace.onDidChangeTextDocument(evt => analyzeDocument(evt.document)),
+        vscode.window.onDidChangeActiveTextEditor(editor => { if (editor) analyzeDocument(editor.document); })
+    );
 }
 
 function deactivate() {
-    diagnosticsCollection?.dispose();
+    diagnosticCollection?.dispose();
 }
 
-function checkDocument(doc) {
-    const lang = doc.languageId;
-    if (!['typescript','javascript','typescriptreact','javascriptreact','csharp'].includes(lang)) return;
+/* -------------------------
+   Utilitários
+   ------------------------- */
 
-    const text = doc.getText();
-    const diagnostics = [];
-
-    if (lang === 'csharp') {
-        analyzeCSharp(text, diagnostics, doc);
-    } else {
-        analyzeJsTs(text, diagnostics, doc);
-    }
-
-    diagnosticsCollection.set(doc.uri, diagnostics);
+// preserva comprimento: substitui comentários/strings por espaços
+function stripCommentsAndStringsPreserve(code) {
+    let s = code;
+    s = s.replace(/\/\*[\s\S]*?\*\//g, m => ' '.repeat(m.length)); // block
+    s = s.replace(/\/\/.*$/mg, m => ' '.repeat(m.length)); // line
+    s = s.replace(/(['"`])(?:\\.|(?!\1).)*\1/g, m => ' '.repeat(m.length)); // strings
+    return s;
 }
 
-// ---------- JS/TS ----------
-function analyzeJsTs(text, diagnostics, doc) {
-    // patterns: função declarada com 'function' e métodos (nome(params) { ... })
-    const patterns = [
-        /(?:async\s+)?function\s+\w*\s*\(([^)]*)\)\s*/g,     // function foo(...) { }
-        /(?:async\s+)?([A-Za-z_]\w*)\s*\(([^)]*)\)\s*/g       // foo(...) { }  (métodos/declarações)
-    ];
-
-    const keywordBlacklist = new Set(['if','for','while','switch','catch','with','else','try']);
-
-    for (const re of patterns) {
-        let m;
-        while ((m = re.exec(text)) !== null) {
-            // para o segundo padrão, evitar palavras-chave (if/for/while etc)
-            if (re === patterns[1]) {
-                const possibleName = m[1];
-                if (!possibleName || keywordBlacklist.has(possibleName)) continue;
-            }
-
-            const paramsRaw = (re === patterns[0]) ? m[1] : m[2];
-
-            const signatureEnd = m.index + m[0].length;
-            // agora procuramos o próximo CHAR que não seja whitespace/nem comentário
-            const nxt = findNextNonSpaceNonCommentChar(text, signatureEnd);
-            if (!nxt || nxt.ch !== '{') continue; // se não houver '{' logo após, não é método
-            const braceOpen = nxt.pos;
-            const braceClose = findMatchingBrace(text, braceOpen);
-            if (braceClose === -1) continue;
-
-            const bodyRaw = text.substring(braceOpen + 1, braceClose);
-            const bodyOffset = braceOpen + 1;
-
-            processMethod(bodyRaw, bodyOffset, paramsRaw, diagnostics, doc);
-        }
-    }
+function escapeRegExp(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-// ---------- C# ----------
-function analyzeCSharp(text, diagnostics, doc) {
-    const methodRe = /\b(?:public|private|protected|internal)?\s*(?:static\s+)?(?:async\s+)?[\w<>,\s\?\[\]]+\s+(\w+)\s*\(([^)]*)\)\s*/g;
-
-    let m;
-    while ((m = methodRe.exec(text)) !== null) {
-        const paramsRaw = m[2];
-
-        const signatureEnd = m.index + m[0].length;
-        const nxt = findNextNonSpaceNonCommentChar(text, signatureEnd);
-        if (!nxt || nxt.ch !== '{') continue;
-        const braceOpen = nxt.pos;
-        if (braceOpen === -1) continue;
-        const braceClose = findMatchingBrace(text, braceOpen);
-        if (braceClose === -1) continue;
-
-        const bodyRaw = text.substring(braceOpen + 1, braceClose);
-        const bodyOffset = braceOpen + 1;
-
-        processMethod(bodyRaw, bodyOffset, paramsRaw, diagnostics, doc, true);
-    }
-}
-
-// ---------- PROCESSA UM MÉTODO POR VEZ ----------
-function processMethod(bodyRaw, bodyOffset, paramsRaw, diagnostics, doc, isCSharp=false) {
-    // --- PARÂMETROS ---
-    let params = [];
-    if (isCSharp) {
-        params = paramsRaw.split(',')
-            .map(p => p.trim().split(' ').pop())
-            .filter(Boolean);
-    } else {
-        params = cleanParams(paramsRaw);
-    }
-
-    // --- VARIÁVEIS LOCAIS (apenas dentro deste método) ---
-    // Limpa comentários e strings para evitar falsos positivos ao coletar declarações
-    const cleanedBody = stripCommentsAndStrings(bodyRaw);
-
-    let decls;
-    if (isCSharp) {
-        decls = findVarDeclsCSharp(cleanedBody, bodyOffset);
-    } else {
-        decls = findVarDecls(cleanedBody, bodyOffset);
-    }
-
-    const varNames = decls.map(d => d.name).filter(n => !params.includes(n));
-
-    // --- CHECAGEM DE ORDEM ---
-    if (params.length > 1) checkOrder(params, bodyRaw, bodyOffset, diagnostics, doc, 'Parâmetro', []);
-    if (varNames.length > 1) checkOrder(varNames, bodyRaw, bodyOffset, diagnostics, doc, 'Variável', decls);
-}
-
-// ---------- UTIL ----------
-
-// encontra o próximo caractere que não seja whitespace ou comentário (retorna pos e ch)
-function findNextNonSpaceNonCommentChar(text, posStart) {
-    const len = text.length;
-    let i = posStart;
-    while (i < len) {
-        const ch = text[i];
-        // whitespace
-        if (/\s/.test(ch)) { i++; continue; }
-
-        // line comment //
-        if (ch === '/' && text[i+1] === '/') {
-            i += 2;
-            while (i < len && text[i] !== '\n') i++;
-            continue;
-        }
-
-        // block comment /* */
-        if (ch === '/' && text[i+1] === '*') {
-            i += 2;
-            while (i < len && !(text[i] === '*' && text[i+1] === '/')) i++;
-            i += 2;
-            continue;
-        }
-
-        return { pos: i, ch };
-    }
-    return null;
-}
-
-function stripCommentsAndStrings(text) {
-    // substitui comentários/strings por espaços de mesmo comprimento para
-    // preservar índices e permitir cálculos de posição/profundidade corretos
-    return text
-        .replace(/\/\*[\s\S]*?\*\//g, match => ' '.repeat(match.length))    // /* ... */
-        .replace(/\/\/.*$/mg, match => ' '.repeat(match.length))           // // ...
-        .replace(/(['"`])(?:\\.|(?!\1).)*\1/g, match => ' '.repeat(match.length)); // "..." '...' `...`
-}
-
-function findVarDecls(cleanedBody, bodyOffset) {
-    const decls = [];
-    const regex = /\b(?:const|let|var)\s+([A-Za-z_]\w*)\s*=/g;
-    let m;
-    while ((m = regex.exec(cleanedBody)) !== null) {
-        const name = m[1];
-        const pos = bodyOffset + m.index + m[0].indexOf(name);
-        decls.push({ name, pos, len: name.length });
-    }
-    return decls;
-}
-
-// ---------- ALTERAÇÃO: findVarDeclsCSharp agora grava blockStart em absoluto ----------
-function findVarDeclsCSharp(cleanedBody, bodyOffset) {
-    const decls = [];
-    const regex = /\b(?:[A-Za-z_][\w<>.,\s\[\]]*\s+)([A-Za-z_]\w*)\s*=/g;
-
-    // Varremos mantendo uma pilha dinâmica para saber qual '{' está aberto em cada posição
-    const dynamicStack = [];
-    let lastIndex = 0;
-
-    regex.lastIndex = 0;
-    let m;
-    while ((m = regex.exec(cleanedBody)) !== null) {
-        // Avança a pilha de lastIndex até m.index
-        for (let i = lastIndex; i < m.index; i++) {
-            const ch = cleanedBody[i];
-            if (ch === '{') dynamicStack.push(i);
-            else if (ch === '}') if (dynamicStack.length) dynamicStack.pop();
-        }
-        lastIndex = m.index;
-
-        const name = m[1];
-        const matchText = m[0];
-        const nameIndexInMatch = matchText.lastIndexOf(name);
-        const absPos = bodyOffset + m.index + nameIndexInMatch;
-
-        const blockStartRel = dynamicStack.length ? dynamicStack[dynamicStack.length - 1] : 0;
-        const blockStartAbs = bodyOffset + blockStartRel; // armazenamos absoluto
-        const blockDepth = dynamicStack.length;
-
-        decls.push({
-            name,
-            pos: absPos,            // absoluto
-            len: name.length,
-            depth: blockDepth,
-            blockStart: blockStartAbs // absoluto
-        });
-    }
-    return decls;
-}
-
+// encontra '}' correspondente à '{' em openIndex (usa texto original e ignora strings/comentários)
 function findMatchingBrace(text, openIndex) {
     const len = text.length;
     let depth = 0;
@@ -235,17 +59,17 @@ function findMatchingBrace(text, openIndex) {
         }
 
         // line comment //
-        if (ch === '/' && text[i+1] === '/') {
+        if (ch === '/' && text[i + 1] === '/') {
             i += 2;
             while (i < len && text[i] !== '\n') i++;
             continue;
         }
 
         // block comment /* */
-        if (ch === '/' && text[i+1] === '*') {
+        if (ch === '/' && text[i + 1] === '*') {
             i += 2;
-            while (i < len && !(text[i] === '*' && text[i+1] === '/')) i++;
-            i += 1;
+            while (i < len && !(text[i] === '*' && text[i + 1] === '/')) i++;
+            i += 2;
             continue;
         }
 
@@ -255,180 +79,199 @@ function findMatchingBrace(text, openIndex) {
     return -1;
 }
 
-function cleanParams(raw) {
-    return raw
-        .split(',')
-        .map(p => p.trim().split(':')[0].split('=')[0].trim())
-        .map(p => p.replace(/^[\[\{].*[\}\]]$/,'').trim())
-        .filter(Boolean);
-}
-
-function findVariableUsages(body, variableName, bodyOffset) {
-    const usages = [];
-    const pattern = new RegExp(`\\b${escapeRegExp(variableName)}\\b`, 'g');
-
-    let match;
-    while ((match = pattern.exec(body)) !== null) {
-        const before = body.substring(0, match.index);
-        const isDeclaration = /\b(const|let|var|[A-Za-z_]\w*)\s+$/.test(before);
-        if (!isDeclaration) usages.push(bodyOffset + match.index);
-    }
-
-    return usages;
-}
-
-// ---------- ALTERAÇÃO: checkOrder agrupa por depth+blockStart absoluto ----------
-function checkOrder(names, bodyRaw, bodyOffset, diagnostics, doc, label, declPositions) {
-    // Filtra nomes válidos
-    names = names.filter(n => /^[A-Za-z_]\w*$/.test(n) && n !== 'form');
-    if (!names.length) return;
-
-    const declPosMap = (declPositions || []).filter(d => names.includes(d.name));
-
-    // Identifica o tipo de retorno na assinatura do método
-    const returnType = getReturnType(bodyRaw);
-    if (returnType && names.includes(returnType) === false) {
-        names.push(returnType);
-    }
-
-    // --- Pré-calcula ranges de comentários e strings (usados para ignorar matches) ---
-    const commentRanges = [];
-    let m;
-    const lineCommentRe = /\/\/.*$/mg;
-    while ((m = lineCommentRe.exec(bodyRaw)) !== null)
-        commentRanges.push([bodyOffset + m.index, bodyOffset + m.index + m[0].length]);
-    const blockCommentRe = /\/\*[\s\S]*?\*\//g;
-    while ((m = blockCommentRe.exec(bodyRaw)) !== null)
-        commentRanges.push([bodyOffset + m.index, bodyOffset + m.index + m[0].length]);
-
-    const stringRanges = [];
-    for (let i = 0; i < bodyRaw.length; i++) {
-        const ch = bodyRaw[i];
-        if (ch === '\'' || ch === '"' || ch === '`') {
-            const quote = ch;
-            const start = i;
-            i++;
-            while (i < bodyRaw.length) {
-                if (bodyRaw[i] === '\\') { i += 2; continue; }
-                if (bodyRaw[i] === quote) break;
-                i++;
-            }
-            const end = Math.min(i, bodyRaw.length - 1);
-            stringRanges.push([bodyOffset + start, bodyOffset + end + 1]);
+// encontra parêntese correspondente para ')' em pos (varre para trás)
+function findMatchingParenBackward(clean, closePos) {
+    let depth = 0;
+    for (let i = closePos; i >= 0; i--) {
+        const ch = clean[i];
+        if (ch === ')') depth++;
+        else if (ch === '(') {
+            depth--;
+            if (depth === 0) return i;
         }
     }
+    return -1;
+}
 
-    const inRanges = (pos, ranges) => ranges.some(r => pos >= r[0] && pos < r[1]);
+// retorna índice do caractere não-space mais próximo para trás (cleaned)
+function findPrevNonSpaceIndex(clean, pos) {
+    for (let i = pos; i >= 0; i--) {
+        if (!/\s/.test(clean[i])) return i;
+    }
+    return -1;
+}
 
-    // --- Agrupa nomes por depth+blockStart (somente aqueles que têm declPositions) ---
-    const groups = new Map(); // key "depth_blockStartAbs" -> array of decl objects
-    for (const d of declPosMap) {
-        const key = `${d.depth}_${d.blockStart}`;
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key).push(d);
+function computeRelDepth(cleanBody, relIndex) {
+    let depth = 0;
+    for (let i = 0; i < relIndex; i++) {
+        const ch = cleanBody[i];
+        if (ch === '{') depth++;
+        else if (ch === '}') depth = Math.max(0, depth - 1);
+    }
+    return depth;
+}
+
+/* -------------------------
+   Dispatcher
+   ------------------------- */
+
+function analyzeDocument(doc) {
+    try {
+        if (!doc || !diagnosticCollection) return;
+
+        const text = doc.getText();
+        const diagnostics = [];
+
+        // vamos usar a mesma estratégia para C# e JS/TS: procurar por '{' que seguem ')'
+        // e ignorar palavras-chave de controle (if/for/while/foreach/switch/catch/using/lock/else)
+        const controlKeywords = new Set(['if', 'for', 'while', 'foreach', 'switch', 'catch', 'using', 'lock', 'else', 'do', 'try']);
+
+        // cria versão limpa (sem comentários/strings) para navegação segura
+        const clean = stripCommentsAndStringsPreserve(text);
+        const len = clean.length;
+
+        for (let i = 0; i < len; i++) {
+            if (clean[i] !== '{') continue;
+            // encontramos um '{' — verificar se é o bloco de um método/função (ou bloco de controle)
+            // procurar o caractere não-space anterior
+            const prevIdx = findPrevNonSpaceIndex(clean, i - 1);
+            if (prevIdx === -1) continue;
+
+            // se o prev char não for ')', provavelmente não é uma assinatura (pode ser "{" de bloco sem par)
+            if (clean[prevIdx] !== ')') continue;
+
+            // achar '(' correspondente recuando
+            const openParen = findMatchingParenBackward(clean, prevIdx);
+            if (openParen === -1) continue;
+
+            // pegar token anterior ao '(' para checar se é uma palavra-chave de controle
+            const beforeOpen = findPrevNonSpaceIndex(clean, openParen - 1);
+            if (beforeOpen === -1) continue;
+
+            // extrair palavra (alfanum/_)
+            let startWord = beforeOpen;
+            while (startWord >= 0 && /[A-Za-z0-9_]/.test(clean[startWord])) startWord--;
+            const word = clean.substring(startWord + 1, beforeOpen + 1);
+            // se for palavra de controle, ignorar (não é método)
+            if (controlKeywords.has(word)) continue;
+
+            // caso contrário, acreditamos ser assinatura de método/função — pegar body usando findMatchingBrace no texto original
+            const openPos = i;
+            const closePos = findMatchingBrace(text, openPos);
+            if (closePos === -1) continue;
+
+            const bodyStart = openPos + 1;
+            const bodyRaw = text.substring(bodyStart, closePos);
+
+            // analisar apenas o corpo do método (isolado)
+            analyzeSingleMethod(bodyRaw, bodyStart, diagnostics, doc);
+
+            // pular para after closePos para evitar reprocessar braces dentro do método
+            i = closePos + 1;
+        }
+
+        diagnosticCollection.set(doc.uri, diagnostics);
+    } catch (err) {
+        console.error('localVarOrder analyzer error:', err);
+    }
+}
+
+/* -------------------------
+   Núcleo: analisar UM método isoladamente
+   - mesma lógica que combinamos: agrupamento por depth, pending por depth,
+     uso em qualquer depth consome, aviso só se ocorrência estiver no mesmo depth
+     da declaração anterior.
+   ------------------------- */
+
+function analyzeSingleMethod(bodyRaw, bodyAbsStart, diagnostics, doc) {
+    const clean = stripCommentsAndStringsPreserve(bodyRaw);
+
+    const declRegex = /\b(?:var|let|const|float|double|int|long|bool|byte|short|char|string|Vector[0-9]*|Rigidbody|Transform|GameObject|Quaternion)\s+([A-Za-z_]\w*)\b/g;
+    const decls = [];
+    let dm;
+    while ((dm = declRegex.exec(clean)) !== null) {
+        const name = dm[1];
+        const rel = dm.index + dm[0].lastIndexOf(name);
+        const abs = bodyAbsStart + rel;
+        const depth = computeRelDepth(clean, rel);
+        decls.push({ name, declRelIndex: rel, declAbsIndex: abs, depth });
     }
 
-    // helper: detecta se o bloco que começa em relBlockStart (índice relativo ao bodyRaw)
-    // tem um cabeçalho condicional (if/for/foreach/while/switch/catch/else) imediatamente antes.
-    function isBlockConditional(relBlockStart) {
-        const startScan = Math.max(0, relBlockStart - 64); // um pouco mais de contexto
-        const snippet = bodyRaw.substring(startScan, relBlockStart).trimEnd();
-        const m = snippet.match(/(\b(?:if|for|foreach|while|switch|catch|else))\b\s*(?:\(|$)/i);
-        return !!m;
+    if (decls.length < 1) return;
+
+    // agrupar por depth e manter primeira declaração de cada nome
+    const byDepth = new Map();
+    const firstSeen = new Set();
+    for (const d of decls) {
+        if (firstSeen.has(d.name)) continue;
+        firstSeen.add(d.name);
+        if (!byDepth.has(d.depth)) byDepth.set(d.depth, []);
+        byDepth.get(d.depth).push({ name: d.name, rel: d.declRelIndex, abs: d.declAbsIndex });
     }
 
-    // Processa cada grupo (mesmo depth e mesmo bloco) separadamente
-    for (const [key, groupDecls] of groups.entries()) {
-        if (groupDecls.length <= 1) continue;
+    if ([...byDepth.values()].reduce((s, a) => s + a.length, 0) < 2) return;
 
-        // Para cada declaração do grupo, encontra a primeira ocorrência "válida"
-        // (mesmo bloco, não em comentário/string/decl), ignorando ocorrências em blocos condicionais.
-        const usagePositions = groupDecls.map(dinfo => {
-            const name = dinfo.name;
-            const declDepth = dinfo.depth;
-            const declBlockStart = dinfo.blockStart; // absoluto
+    const pendingByDepth = new Map();
+    const nameToDeclDepth = new Map();
+    for (const [depth, arr] of byDepth.entries()) {
+        const names = arr.map(x => x.name);
+        pendingByDepth.set(depth, names.slice());
+        for (const n of names) nameToDeclDepth.set(n, depth);
+    }
 
-            const pattern = new RegExp(`\\b${escapeRegExp(name)}\\b`, 'g');
-            let match;
-            while ((match = pattern.exec(bodyRaw)) !== null) {
-                // ignora quando o match faz parte de um acesso por ponto: playerTransform.localScale
-                const prevIndex = match.index - 1;
-                if (prevIndex >= 0) {
-                    const prevCh = bodyRaw[prevIndex];
-                    if (prevCh === '.') continue;
-                }
+    // percorre tokens do corpo limpo (relativo)
+    const tokenRe = /\b[A-Za-z_]\w*\b/g;
+    let tk;
+    while ((tk = tokenRe.exec(clean)) !== null) {
+        const token = tk[0];
+        const relIndex = tk.index;
+        const absIndex = bodyAbsStart + relIndex;
 
-                const relIndex = match.index;             // índice relativo ao bodyRaw
-                const absPos = bodyOffset + relIndex;     // posição absoluta no documento
+        // pular quando token é exatamente declaração do nome
+        const isDeclHere = decls.some(d => d.declRelIndex === relIndex);
+        if (isDeclHere) continue;
 
-                // calcula pilha de '{' até relIndex para obter depth e blockStart corretos (em absoluto)
-                const stack = [];
-                for (let i = 0; i < relIndex; i++) {
-                    const ch = bodyRaw[i];
-                    if (ch === '{') stack.push(i);
-                    else if (ch === '}') { if (stack.length) stack.pop(); }
-                }
-                const matchDepth = stack.length;
-                const matchBlockStart = stack.length ? (bodyOffset + stack[stack.length - 1]) : bodyOffset; // absoluto
+        if (!nameToDeclDepth.has(token)) continue;
+        const declDepth = nameToDeclDepth.get(token);
+        const pending = pendingByDepth.get(declDepth);
+        if (!pending || pending.length === 0) continue;
 
-                const isDecl = declPositions.some(d => absPos >= d.pos && absPos < d.pos + (d.len || d.name.length));
-                const inComment = inRanges(absPos, commentRanges);
-                const inString = inRanges(absPos, stringRanges);
+        // índice na pending
+        const pendingIndex = pending.indexOf(token);
+        if (pendingIndex === -1) continue;
 
-                // Se este match está dentro de um bloco condicional (ex: if) então
-                // NÃO usamos essa ocorrência para estabelecer ordem (evita falsos positivos).
-                const relBlockStart = matchBlockStart - bodyOffset;
-                if (matchDepth > 0 && isBlockConditional(relBlockStart)) {
-                    continue;
-                }
+        // profundidade do uso
+        const tokenDepth = computeRelDepth(clean, relIndex);
 
-                // só conta se for do mesmo depth E do mesmo bloco (blockStart em absoluto),
-                // e não estiver em comment/string/decl
-                if (!isDecl && !inComment && !inString && matchDepth === declDepth && matchBlockStart === declBlockStart) {
-                    return absPos;
-                }
-            }
-            return Infinity;
-        });
-
-        // --- Filtra entradas que realmente têm uma ocorrência válida (não Infinity) ---
-        const entries = groupDecls.map((d, i) => ({ decl: d, pos: usagePositions[i] }))
-                                  .filter(e => Number.isFinite(e.pos));
-
-        // se sobrar 0 ou 1 variável com ocorrência válida, nada a checar
-        if (entries.length <= 1) continue;
-
-        // --- Verifica ordem estrita apenas entre as variáveis com ocorrência válida ---
-        for (let i = 1; i < entries.length; i++) {
-            if (entries[i].pos < entries[i - 1].pos) {
-                const name = entries[i].decl.name;
-                const prevName = entries[i - 1].decl.name;
+        if (tokenDepth === declDepth) {
+            // uso no mesmo nível
+            if (pendingIndex === 0) {
+                // consumo correto
+                pending.shift();
+            } else {
+                // fora de ordem no mesmo nível -> avisar
                 const range = new vscode.Range(
-                    doc.positionAt(entries[i].pos),
-                    doc.positionAt(entries[i].pos + name.length)
+                    doc.positionAt(absIndex),
+                    doc.positionAt(absIndex + token.length)
                 );
                 diagnostics.push(new vscode.Diagnostic(
                     range,
-                    `${label} "${name}" foi usada antes de ${prevName} ter sido usada.`,
+                    `Variável "${token}" foi usada antes de "${pending[0]}" (declaração anterior no mesmo nível ainda não usada).`,
                     vscode.DiagnosticSeverity.Warning
                 ));
+                // remover token da pending após aviso
+                pending.splice(pendingIndex, 1);
             }
+        } else {
+            // uso em outro depth: não avisa, mas consome a variável (remove da pending da sua depth)
+            pending.splice(pendingIndex, 1);
         }
+
+        pendingByDepth.set(declDepth, pending);
     }
 }
 
-
-
-
-// Função auxiliar para identificar o tipo de retorno na assinatura do método
-function getReturnType(bodyRaw) {
-    const match = bodyRaw.match(/:\s*Promise<([^>]+)>/);
-    return match ? match[1] : null;
-}
-
-
-function escapeRegExp(string) {
-    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-module.exports = { activate, deactivate };
+module.exports = {
+    activate,
+    deactivate
+};

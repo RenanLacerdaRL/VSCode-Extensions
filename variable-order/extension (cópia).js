@@ -1,144 +1,48 @@
+// extension.js
 const vscode = require('vscode');
 
-let diagnosticsCollection;
+let diagnosticCollection = null;
 
 function activate(context) {
-    diagnosticsCollection = vscode.languages.createDiagnosticCollection('orderChecker');
-    context.subscriptions.push(diagnosticsCollection);
-
-    vscode.workspace.onDidOpenTextDocument(checkDocument, null, context.subscriptions);
-    vscode.workspace.onDidChangeTextDocument(e => checkDocument(e.document), null, context.subscriptions);
+    diagnosticCollection = vscode.languages.createDiagnosticCollection('localVarOrder');
+    context.subscriptions.push(diagnosticCollection);
 
     if (vscode.window.activeTextEditor) {
-        checkDocument(vscode.window.activeTextEditor.document);
+        analyzeDocument(vscode.window.activeTextEditor.document);
     }
+
+    context.subscriptions.push(
+        vscode.workspace.onDidOpenTextDocument(doc => analyzeDocument(doc)),
+        vscode.workspace.onDidChangeTextDocument(evt => analyzeDocument(evt.document)),
+        vscode.window.onDidChangeActiveTextEditor(editor => { if (editor) analyzeDocument(editor.document); })
+    );
 }
 
 function deactivate() {
-    diagnosticsCollection?.dispose();
+    diagnosticCollection?.dispose();
 }
 
-function checkDocument(doc) {
-    const lang = doc.languageId;
-    if (!['typescript','javascript','typescriptreact','javascriptreact','csharp'].includes(lang)) return;
+/* --------------------------------------
+   Utilitários de parsing (braces, comentários)
+   -------------------------------------- */
 
-    const text = doc.getText();
-    const diagnostics = [];
-
-    if (lang === 'csharp') {
-        analyzeCSharp(text, diagnostics, doc);
-    } else {
-        analyzeJsTs(text, diagnostics, doc);
-    }
-
-    diagnosticsCollection.set(doc.uri, diagnostics);
-}
-
-// ---------- JS/TS ----------
-function analyzeJsTs(text, diagnostics, doc) {
-    // patterns: função declarada com 'function' e métodos (nome(params) { ... })
-    const patterns = [
-        /(?:async\s+)?function\s+\w*\s*\(([^)]*)\)\s*/g,     // function foo(...) { }
-        /(?:async\s+)?([A-Za-z_]\w*)\s*\(([^)]*)\)\s*/g       // foo(...) { }  (métodos/declarações)
-    ];
-
-    const keywordBlacklist = new Set(['if','for','while','switch','catch','with','else','try']);
-
-    for (const re of patterns) {
-        let m;
-        while ((m = re.exec(text)) !== null) {
-            // para o segundo padrão, evitar palavras-chave (if/for/while etc)
-            if (re === patterns[1]) {
-                const possibleName = m[1];
-                if (!possibleName || keywordBlacklist.has(possibleName)) continue;
-            }
-
-            const paramsRaw = (re === patterns[0]) ? m[1] : m[2];
-
-            const signatureEnd = m.index + m[0].length;
-            // agora procuramos o próximo CHAR que não seja whitespace/nem comentário
-            const nxt = findNextNonSpaceNonCommentChar(text, signatureEnd);
-            if (!nxt || nxt.ch !== '{') continue; // se não houver '{' logo após, não é método
-            const braceOpen = nxt.pos;
-            const braceClose = findMatchingBrace(text, braceOpen);
-            if (braceClose === -1) continue;
-
-            const bodyRaw = text.substring(braceOpen + 1, braceClose);
-            const bodyOffset = braceOpen + 1;
-
-            processMethod(bodyRaw, bodyOffset, paramsRaw, diagnostics, doc);
-        }
-    }
-}
-
-// ---------- C# ----------
-function analyzeCSharp(text, diagnostics, doc) {
-    const methodRe = /\b(?:public|private|protected|internal)?\s*(?:static\s+)?(?:async\s+)?[\w<>,\s\?\[\]]+\s+(\w+)\s*\(([^)]*)\)\s*/g;
-
-    let m;
-    while ((m = methodRe.exec(text)) !== null) {
-        const paramsRaw = m[2];
-
-        const signatureEnd = m.index + m[0].length;
-        const nxt = findNextNonSpaceNonCommentChar(text, signatureEnd);
-        if (!nxt || nxt.ch !== '{') continue;
-        const braceOpen = nxt.pos;
-        if (braceOpen === -1) continue;
-        const braceClose = findMatchingBrace(text, braceOpen);
-        if (braceClose === -1) continue;
-
-        const bodyRaw = text.substring(braceOpen + 1, braceClose);
-        const bodyOffset = braceOpen + 1;
-
-        processMethod(bodyRaw, bodyOffset, paramsRaw, diagnostics, doc, true);
-    }
-}
-
-// ---------- PROCESSA UM MÉTODO POR VEZ ----------
-function processMethod(bodyRaw, bodyOffset, paramsRaw, diagnostics, doc, isCSharp=false) {
-    // --- PARÂMETROS ---
-    let params = [];
-    if (isCSharp) {
-        params = paramsRaw.split(',')
-            .map(p => p.trim().split(' ').pop())
-            .filter(Boolean);
-    } else {
-        params = cleanParams(paramsRaw);
-    }
-
-    // --- VARIÁVEIS LOCAIS (apenas dentro deste método) ---
-    // Limpa comentários e strings para evitar falsos positivos ao coletar declarações
-    const cleanedBody = stripCommentsAndStrings(bodyRaw);
-    const decls = findVarDecls(cleanedBody, bodyOffset);
-    const varNames = decls.map(d => d.name).filter(n => !params.includes(n));
-
-    // --- CHECAGEM DE ORDEM ---
-    if (params.length > 1) checkOrder(params, bodyRaw, bodyOffset, diagnostics, doc, 'Parâmetro', []);
-    if (varNames.length > 1) checkOrder(varNames, bodyRaw, bodyOffset, diagnostics, doc, 'Variável', decls);
-}
-
-// ---------- UTIL ----------
-
-// encontra o próximo caractere que não seja whitespace ou comentário (retorna pos e ch)
-function findNextNonSpaceNonCommentChar(text, posStart) {
+function findNextNonSpaceNonCommentChar(text, start) {
     const len = text.length;
-    let i = posStart;
+    let i = start;
     while (i < len) {
         const ch = text[i];
-        // whitespace
         if (/\s/.test(ch)) { i++; continue; }
 
         // line comment //
-        if (ch === '/' && text[i+1] === '/') {
+        if (ch === '/' && text[i + 1] === '/') {
             i += 2;
             while (i < len && text[i] !== '\n') i++;
             continue;
         }
-
         // block comment /* */
-        if (ch === '/' && text[i+1] === '*') {
+        if (ch === '/' && text[i + 1] === '*') {
             i += 2;
-            while (i < len && !(text[i] === '*' && text[i+1] === '/')) i++;
+            while (i < len && !(text[i] === '*' && text[i + 1] === '/')) i++;
             i += 2;
             continue;
         }
@@ -146,25 +50,6 @@ function findNextNonSpaceNonCommentChar(text, posStart) {
         return { pos: i, ch };
     }
     return null;
-}
-
-function stripCommentsAndStrings(text) {
-    return text
-        .replace(/\/\*[\s\S]*?\*\//g, '')    // /* ... */
-        .replace(/\/\/.*$/mg, '')           // // ...
-        .replace(/(['"`])(?:\\.|(?!\1).)*\1/g, ''); // "..." '...' `...`
-}
-
-function findVarDecls(cleanedBody, bodyOffset) {
-    const decls = [];
-    const regex = /\b(?:const|let|var)\s+([A-Za-z_]\w*)\s*=/g;
-    let m;
-    while ((m = regex.exec(cleanedBody)) !== null) {
-        const name = m[1];
-        const pos = bodyOffset + m.index + m[0].indexOf(name);
-        decls.push({ name, pos, len: name.length });
-    }
-    return decls;
 }
 
 function findMatchingBrace(text, openIndex) {
@@ -185,18 +70,18 @@ function findMatchingBrace(text, openIndex) {
             continue;
         }
 
-        // line comment //
-        if (ch === '/' && text[i+1] === '/') {
+        // line comment
+        if (ch === '/' && text[i + 1] === '/') {
             i += 2;
             while (i < len && text[i] !== '\n') i++;
             continue;
         }
 
-        // block comment /* */
-        if (ch === '/' && text[i+1] === '*') {
+        // block comment
+        if (ch === '/' && text[i + 1] === '*') {
             i += 2;
-            while (i < len && !(text[i] === '*' && text[i+1] === '/')) i++;
-            i += 1;
+            while (i < len && !(text[i] === '*' && text[i + 1] === '/')) i++;
+            i += 2;
             continue;
         }
 
@@ -206,109 +91,205 @@ function findMatchingBrace(text, openIndex) {
     return -1;
 }
 
-function cleanParams(raw) {
-    return raw
-        .split(',')
-        .map(p => p.trim().split(':')[0].split('=')[0].trim())
-        .map(p => p.replace(/^[\[\{].*[\}\]]$/,'').trim())
-        .filter(Boolean);
+/**
+ * Preserva comprimento substituindo comentários/strings por espaços.
+ * Mantém índices consistentes com o documento original.
+ */
+function stripCommentsAndStringsPreserve(code) {
+    let s = code;
+    s = s.replace(/\/\*[\s\S]*?\*\//g, m => ' '.repeat(m.length)); // block
+    s = s.replace(/\/\/.*$/mg, m => ' '.repeat(m.length)); // line
+    s = s.replace(/(['"`])(?:\\.|(?!\1).)*\1/g, m => ' '.repeat(m.length)); // strings
+    return s;
 }
 
-function findVariableUsages(body, variableName, bodyOffset) {
-    const usages = [];
-    const pattern = new RegExp(`\\b${escapeRegExp(variableName)}\\b`, 'g');
-
-    let match;
-    while ((match = pattern.exec(body)) !== null) {
-        const before = body.substring(0, match.index);
-        const isDeclaration = /\b(const|let|var|[A-Za-z_]\w*)\s+$/.test(before);
-        if (!isDeclaration) usages.push(bodyOffset + match.index);
+function computeRelDepth(cleanBody, relIndex) {
+    // conta '{' e '}' no trecho cleanBody[0 .. relIndex-1]
+    let depth = 0;
+    for (let i = 0; i < relIndex; i++) {
+        const ch = cleanBody[i];
+        if (ch === '{') depth++;
+        else if (ch === '}') depth = Math.max(0, depth - 1);
     }
-
-    return usages;
+    return depth;
 }
-function checkOrder(names, bodyRaw, bodyOffset, diagnostics, doc, label, declPositions) {
-    // Filtra nomes válidos
-    names = names.filter(n => /^[A-Za-z_]\w*$/.test(n) && n !== 'form');
-    if (!names.length) return;
 
-    const declPosMap = (declPositions || []).filter(d => names.includes(d.name));
+function escapeRegExp(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
-    // Identifica o tipo de retorno na assinatura do método
-    const returnType = getReturnType(bodyRaw);
-    if (returnType) {
-        names.push(returnType);
+/* --------------------------------------
+   Dispatcher por linguagem
+   -------------------------------------- */
+
+function analyzeDocument(doc) {
+    try {
+        if (!doc || !diagnosticCollection) return;
+
+        const text = doc.getText();
+        const diagnostics = [];
+
+        if (doc.languageId === 'csharp') {
+            analyzeCSharpDocument(text, diagnostics, doc);
+        } else if (['javascript', 'typescript', 'javascriptreact', 'typescriptreact'].includes(doc.languageId)) {
+            analyzeJsTsDocument(text, diagnostics, doc);
+        }
+
+        diagnosticCollection.set(doc.uri, diagnostics);
+    } catch (err) {
+        console.error('localVarOrder analyzer error:', err);
     }
+}
 
-    // --- Comentários e strings ---
-    const commentRanges = [];
+/* --------------------------------------
+   Analisador C#
+   -------------------------------------- */
+
+function analyzeCSharpDocument(text, diagnostics, doc) {
+    const methodSig = /(?:public|private|protected|internal|static|virtual|override|async|sealed|\s)+[\w<>\[\],\s]+\s+([A-Za-z_]\w*)\s*\([^)]*\)/g;
     let m;
-    const lineCommentRe = /\/\/.*$/mg;
-    while ((m = lineCommentRe.exec(bodyRaw)) !== null)
-        commentRanges.push([bodyOffset + m.index, bodyOffset + m.index + m[0].length]);
-    const blockCommentRe = /\/\*[\s\S]*?\*\//g;
-    while ((m = blockCommentRe.exec(bodyRaw)) !== null)
-        commentRanges.push([bodyOffset + m.index, bodyOffset + m.index + m[0].length]);
+    while ((m = methodSig.exec(text)) !== null) {
+        const sigEnd = methodSig.lastIndex;
+        const nxt = findNextNonSpaceNonCommentChar(text, sigEnd);
+        if (!nxt || nxt.ch !== '{') continue;
+        const openPos = nxt.pos;
+        const closePos = findMatchingBrace(text, openPos);
+        if (closePos === -1) continue;
 
-    const stringRanges = [];
-    for (let i = 0; i < bodyRaw.length; i++) {
-        const ch = bodyRaw[i];
-        if (ch === '\'' || ch === '"' || ch === '`') {
-            const quote = ch;
-            const start = i;
-            i++;
-            while (i < bodyRaw.length) {
-                if (bodyRaw[i] === '\\') { i += 2; continue; }
-                if (bodyRaw[i] === quote) break;
-                i++;
+        const bodyStart = openPos + 1;
+        const bodyRaw = text.substring(bodyStart, closePos);
+        analyzeSingleMethod(bodyRaw, bodyStart, diagnostics, doc);
+
+        methodSig.lastIndex = closePos + 1;
+    }
+}
+
+/* --------------------------------------
+   Analisador JS/TS
+   -------------------------------------- */
+
+function analyzeJsTsDocument(text, diagnostics, doc) {
+    const sigRegex = /(?:function\s+[A-Za-z_]\w*\s*\([^)]*\))|(?:[A-Za-z_]\w*\s*=\s*function\s*\([^)]*\))|(?:[A-Za-z_]\w*\s*\([^)]*\)\s*{)|(?:=\s*\([^)]*\)\s*=>)/g;
+    let m;
+    while ((m = sigRegex.exec(text)) !== null) {
+        const sigEnd = sigRegex.lastIndex;
+        const nxt = findNextNonSpaceNonCommentChar(text, sigEnd);
+        if (!nxt || nxt.ch !== '{') continue;
+        const openPos = nxt.pos;
+        const closePos = findMatchingBrace(text, openPos);
+        if (closePos === -1) continue;
+
+        const bodyStart = openPos + 1;
+        const bodyRaw = text.substring(bodyStart, closePos);
+        analyzeSingleMethod(bodyRaw, bodyStart, diagnostics, doc);
+
+        sigRegex.lastIndex = closePos + 1;
+    }
+}
+
+/* --------------------------------------
+   Núcleo: analisar UM método isoladamente
+   - agora: variáveis são agrupadas por depth e NÃO vazam para scope externos
+   - consumo (remoção) pode ocorrer por uso em qualquer depth
+   - aviso só se a ocorrência estiver no mesmo depth da declaração anterior pendente
+   -------------------------------------- */
+
+function analyzeSingleMethod(bodyRaw, bodyAbsStart, diagnostics, doc) {
+    const clean = stripCommentsAndStringsPreserve(bodyRaw);
+
+    // Declarações locais (C#/JS comuns). Padrão captura tipo + nome ou var/let/const
+    const declRegex = /\b(?:var|let|const|float|double|int|long|bool|byte|short|char|string|Vector[0-9]*|Rigidbody|Transform|GameObject|Quaternion)\s+([A-Za-z_]\w*)\b/g;
+    const decls = []; // { name, declRelIndex, declAbsIndex, depth }
+    let dm;
+    while ((dm = declRegex.exec(clean)) !== null) {
+        const name = dm[1];
+        const rel = dm.index + dm[0].lastIndexOf(name); // posição RELATIVA ao bodyRaw do nome
+        const abs = bodyAbsStart + rel;
+        const depth = computeRelDepth(clean, rel);
+        decls.push({ name, declRelIndex: rel, declAbsIndex: abs, depth });
+    }
+
+    if (decls.length < 1) return;
+
+    // Agrupar declarações por depth, mantendo ordem de declaração e ignorando redeclarações posteriores
+    const byDepth = new Map(); // depth -> array of {name, rel, abs}
+    const firstSeen = new Set();
+    for (const d of decls) {
+        if (firstSeen.has(d.name)) continue; // ignora redeclarações posteriores
+        firstSeen.add(d.name);
+        if (!byDepth.has(d.depth)) byDepth.set(d.depth, []);
+        byDepth.get(d.depth).push({ name: d.name, rel: d.declRelIndex, abs: d.declAbsIndex });
+    }
+
+    if ([...byDepth.values()].reduce((s, a) => s + a.length, 0) < 2) return;
+
+    // Inicializa pendings por depth (cópia)
+    const pendingByDepth = new Map();
+    const nameToDeclDepth = new Map();
+    for (const [depth, arr] of byDepth.entries()) {
+        const names = arr.map(x => x.name);
+        pendingByDepth.set(depth, names.slice());
+        for (const n of names) nameToDeclDepth.set(n, depth);
+    }
+
+    // Percorre tokens do corpo (relativo) da esquerda para a direita
+    const tokenRe = /\b[A-Za-z_]\w*\b/g;
+    let tk;
+    while ((tk = tokenRe.exec(clean)) !== null) {
+        const token = tk[0];
+        const relIndex = tk.index;
+        const absIndex = bodyAbsStart + relIndex;
+
+        // pular se é exatamente a posição da declaração do próprio token
+        const isDeclHere = decls.some(d => d.declRelIndex === relIndex);
+        if (isDeclHere) continue;
+
+        // só nos interessam tokens que foram declarados em algum depth dentro deste método
+        if (!nameToDeclDepth.has(token)) continue;
+        const declDepth = nameToDeclDepth.get(token);
+
+        // pendings da depth da declaração
+        const pending = pendingByDepth.get(declDepth);
+        if (!pending || pending.length === 0) continue;
+
+        // índice na pending (se já removido, ignora)
+        const pendingIndex = pending.indexOf(token);
+        if (pendingIndex === -1) continue;
+
+        // compute depth of this usage
+        const tokenDepth = computeRelDepth(clean, relIndex);
+
+        if (tokenDepth === declDepth) {
+            // uso no mesmo nível da declaração
+            if (pendingIndex === 0) {
+                // uso correto — consome o primeiro
+                pending.shift();
+            } else {
+                // uso errado no mesmo nível — gerar aviso sobre esta ocorrência
+                const range = new vscode.Range(
+                    doc.positionAt(absIndex),
+                    doc.positionAt(absIndex + token.length)
+                );
+                diagnostics.push(new vscode.Diagnostic(
+                    range,
+                    `Variável "${token}" foi usada antes de "${pending[0]}" (declaração anterior no mesmo nível ainda não usada).`,
+                    vscode.DiagnosticSeverity.Warning
+                ));
+                // remover esta variável da pending (após aviso)
+                pending.splice(pendingIndex, 1);
             }
-            const end = Math.min(i, bodyRaw.length-1);
-            stringRanges.push([bodyOffset + start, bodyOffset + end + 1]);
+        } else {
+            // uso em depth diferente (ex.: variável do nível superior sendo usada dentro de bloco interno)
+            // não emitir aviso, mas considerar como "uso" e remover da pending correspondente
+            pending.splice(pendingIndex, 1);
         }
-    }
 
-    const inRanges = (pos, ranges) => ranges.some(r => pos >= r[0] && pos < r[1]);
-
-    // --- Encontra primeiras ocorrências válidas ---
-    const usagePositions = names.map(name => {
-        const pattern = new RegExp(`\\b${escapeRegExp(name)}\\b`, 'g');
-        let match;
-        while ((match = pattern.exec(bodyRaw)) !== null) {
-            const absPos = bodyOffset + match.index;
-            const isDecl = declPosMap.some(d => absPos >= d.pos && absPos < d.pos + (d.len || d.name.length));
-            const inComment = inRanges(absPos, commentRanges);
-            const inString = inRanges(absPos, stringRanges);
-            if (!isDecl && !inComment && !inString) return absPos;
-        }
-        return Infinity; // Nunca usado
-    });
-
-    // --- Verifica ordem estrita ---
-    for (let i = 1; i < usagePositions.length; i++) {
-        if (usagePositions[i] < usagePositions[i - 1]) {
-            const name = names[i];
-            const range = new vscode.Range(
-                doc.positionAt(usagePositions[i]),
-                doc.positionAt(usagePositions[i] + name.length)
-            );
-            diagnostics.push(new vscode.Diagnostic(
-                range,
-                `${label} "${name}" foi usada antes de ${names[i - 1]} ter sido usada.`,
-                vscode.DiagnosticSeverity.Warning
-            ));
-        }
+        // atualiza pendings no map (se esvaziou, manter array vazia)
+        pendingByDepth.set(declDepth, pending);
     }
 }
 
-// Função auxiliar para identificar o tipo de retorno na assinatura do método
-function getReturnType(bodyRaw) {
-    const match = bodyRaw.match(/:\s*Promise<([^>]+)>/);
-    return match ? match[1] : null;
-}
-
-
-function escapeRegExp(string) {
-    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-module.exports = { activate, deactivate };
+module.exports = {
+    activate,
+    deactivate
+};

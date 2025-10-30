@@ -1,4 +1,553 @@
-"rl.method-order.prefixOrder": [
+{
+    "breadcrumbs.enabled": false,
+    "bulkProblemDiagnostics.filesLimit": 2000,
+    "editor.bracketPairColorization.enabled": false,
+    "editor.codeLens": false,
+    "editor.detectIndentation": false,
+    "editor.foldingHighlight": false,
+    "editor.glyphMargin": false,
+    "editor.maxTokenizationLineLength": 200000,
+    "editor.minimap.enabled": false,
+    "editor.multiCursorModifier": "ctrlCmd",
+    "editor.occurrencesHighlight": "off",
+    "editor.renderWhitespace": "none",
+    "editor.selectionClipboard": false,
+    "editor.semanticHighlighting.enabled": false,
+    "editor.showFoldingControls": "always",
+    "editor.stickyScroll.enabled": false,
+    "editor.suggestSelection": "first",
+    "explorer.compactFolders": false,
+    "explorer.openEditors.sortOrder": "alphabetical",
+    "extensions.autoCheckUpdates": false,
+    "extensions.autoUpdate": false,
+    "extensions.ignoreRecommendations": true,
+    "scm.diffDecorations": "none",
+    "telemetry.telemetryLevel": "off",
+    "terminal.integrated.fontSize": 12,
+    "update.mode": "none",
+    "update.showReleaseNotes": false,
+    "window.restoreWindows": "none",
+    "window.zoomLevel": -1,
+    "workbench.colorTheme": "Visual Studio Dark",
+    "workbench.editor.enablePreview": false,
+    "workbench.editor.openPositioning": "last",
+    "workbench.startupEditor": "none",
+    "workbench.tree.enableStickyScroll": false,
+    "security.workspace.trust.untrustedFiles": "open",
+    "git.autofetch": true,
+    "git.enableSmartCommit": true,
+    "dotnetAcquisitionExtension.enableTelemetry": false,
+    "dotnet.backgroundAnalysis.analyzerDiagnosticsScope": "fullSolution",
+    "dotnet.server.useOmnisharp": true,
+    "csharpfixformat.style.spaces.afterBracket": false,
+    "csharpfixformat.style.spaces.beforeBracket": false,
+    "csharpfixformat.style.spaces.beforeIndexerBracket": false,
+    "csharpfixformat.style.spaces.beforeParenthesis": false,
+    "html.format.wrapLineLength": 3000,
+    "json.maxItemsComputed": 50000,
+    "intelephense.format.braces": "k&r",
+    "intelephense.telemetry.enabled": false,
+    "php.validate.executablePath": "/opt/lampp/bin/php", // Xammp precisa estar instalado
+    "[csharp]": {
+        "editor.defaultFormatter": "Leopotam.csharpfixformat",
+    },
+    "[css]": {
+        "editor.defaultFormatter": "vscode.css-language-features"
+    },
+    "[html]": {
+        "editor.defaultFormatter": "vscode.html-language-features"
+    },
+    "[javascript]": {
+        "editor.defaultFormatter": "vscode.typescript-language-features"
+    },
+    "[json]": {
+        "editor.defaultFormatter": "vscode.json-language-features"
+    },
+    "[jsonc]": {
+        "editor.defaultFormatter": "vscode.json-language-features"
+    },
+    "[markdown]": {
+        "editor.wordWrap": "off",
+    },
+    "[php]": {
+        "editor.defaultFormatter": "bmewburn.vscode-intelephense-client"
+    },
+    "[shaderlab]": {
+        "editor.defaultFormatter": "litefeel.shaderlabformatter"
+    },
+    "[typescript]": {
+        "editor.defaultFormatter": "vscode.typescript-language-features"
+    },
+    "css.format.newlineBetweenRules": false,
+    "css.format.newlineBetweenSelectors": false,
+    "css.format.preserveNewLines": false,
+    "javascript.updateImportsOnFileMove.enabled": "always",
+    "typescript.updateImportsOnFileMove.enabled": "always",
+    "python.envFile": "/.env",
+    "python.languageServer": "Pylance",
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/customModule"
+    ],
+    "intelephense.environment.phpVersion": "7.4.0",
+    "angular2-files.menu.route": false,
+    "angular2-files.menu.directive": false,
+    "angular2-files.menu.class": false,
+    "angular2-files.menu.enum": false,
+    "angular2-files.menu.interface": false,
+    "highlight.maxMatches": 10000,
+    "highlight.regexes": {
+        "((?:<!-- *)?(?:#|// @|//|./\\*+|<!--|--|\\* @|{!|{{!--|{{!) *TODO(?:\\s*\\([^)]+\\))?:?)((?!\\w)(?: *-->| *\\*/| *!}| *--}}| *}}|(?= *(?:[^:]//|/\\*+|<!--|@|--|{!|{{!--|{{!))|(?: +[^\\n@]*?)(?= *(?:[^:]//|/\\*+|<!--|@|--(?!>)|{!|{{!--|{{!))|(?: +[^@\\n]+)?))": {
+            "filterFileRegex": ".*(?<!CHANGELOG.md)$",
+            "decorations": [
+                {
+                    "overviewRulerColor": "#ffcc00",
+                    "backgroundColor": "#ffcc00",
+                    "color": "#1f1f1f",
+                    "fontWeight": "bold"
+                },
+                {
+                    "backgroundColor": "#ffcc00",
+                    "color": "#1f1f1f"
+                }
+            ]
+        },
+        "((?:<!-- *)?(?:#|// @|//|./\\*+|<!--|--|\\* @|{!|{{!--|{{!) *(?:FIXME|FIX|BUG|UGLY|DEBUG|HACK)(?:\\s*\\([^)]+\\))?:?)((?!\\w)(?: *-->| *\\*/| *!}| *--}}| *}}|(?= *(?:[^:]//|/\\*+|<!--|@|--|{!|{{!--|{{!))|(?: +[^\\n@]*?)(?= *(?:[^:]//|/\\*+|<!--|@|--(?!>)|{!|{{!--|{{!))|(?: +[^@\\n]+)?))": {
+            "filterFileRegex": ".*(?<!CHANGELOG.md)$",
+            "decorations": [
+                {
+                    "overviewRulerColor": "#cc0000",
+                    "backgroundColor": "#cc0000",
+                    "color": "#1f1f1f",
+                    "fontWeight": "bold"
+                },
+                {
+                    "backgroundColor": "#cc0000",
+                    "color": "#1f1f1f"
+                }
+            ]
+        },
+        "((?:<!-- *)?(?:#|// @|//|./\\*+|<!--|--|\\* @|{!|{{!--|{{!) *(?:REVIEW|OPTIMIZE|TSC)(?:\\s*\\([^)]+\\))?:?)((?!\\w)(?: *-->| *\\*/| *!}| *--}}| *}}|(?= *(?:[^:]//|/\\*+|<!--|@|--|{!|{{!--|{{!))|(?: +[^\\n@]*?)(?= *(?:[^:]//|/\\*+|<!--|@|--(?!>)|{!|{{!--|{{!))|(?: +[^@\\n]+)?))": {
+            "filterFileRegex": ".*(?<!CHANGELOG.md)$",
+            "decorations": [
+                {
+                    "overviewRulerColor": "#00ccff",
+                    "backgroundColor": "#00ccff",
+                    "color": "#1f1f1f",
+                    "fontWeight": "bold"
+                },
+                {
+                    "backgroundColor": "#00ccff",
+                    "color": "#1f1f1f"
+                }
+            ]
+        },
+        "((?:<!-- *)?(?:#|// @|//|./\\*+|<!--|--|\\* @|{!|{{!--|{{!) *(?:IDEA)(?:\\s*\\([^)]+\\))?:?)((?!\\w)(?: *-->| *\\*/| *!}| *--}}| *}}|(?= *(?:[^:]//|/\\*+|<!--|@|--|{!|{{!--|{{!))|(?: +[^\\n@]*?)(?= *(?:[^:]//|/\\*+|<!--|@|--(?!>)|{!|{{!--|{{!))|(?: +[^@\\n]+)?))": {
+            "filterFileRegex": ".*(?<!CHANGELOG.md)$",
+            "decorations": [
+                {
+                    "overviewRulerColor": "#cc00cc",
+                    "backgroundColor": "#cc00cc",
+                    "color": "#1f1f1f",
+                    "fontWeight": "bold"
+                },
+                {
+                    "backgroundColor": "#cc00cc",
+                    "color": "#1f1f1f"
+                }
+            ]
+        },
+        "(^#.*[^;])": {
+            "regexFlags": "mg",
+            "filterLanguageRegex": "csv",
+            "decorations": [
+                {
+                    "color": "#d7ba7d"
+                }
+            ]
+        },
+        "(^@.*[^;])": {
+            "regexFlags": "mg",
+            "filterLanguageRegex": "csv",
+            "decorations": [
+                {
+                    "color": "#4EC9B0"
+                }
+            ]
+        },
+        "(^;.*[^;])": {
+            "regexFlags": "mg",
+            "filterLanguageRegex": "csv",
+            "decorations": [
+                {
+                    "color": "#9A9EA1"
+                }
+            ]
+        },
+        "([^;]+;)([^;]*;)([^;\r\n]*)": {
+            "regexFlags": "mg",
+            "filterLanguageRegex": "csv",
+            "decorations": [
+                {
+                    "color": "#569cd6"
+                },
+                {
+                    "color": "#D4D4D4"
+                },
+                {
+                    "color": "#ce9178"
+                }
+            ]
+        },
+    },
+    "workbench.iconTheme": "material-icon-theme",
+    "workbench.colorCustomizations": {
+        "editor.foreground": "#D4D4D4",
+        "editor.lineHighlightBackground": "#282828",
+        "editorBracketMatch.border": "#404040",
+        "list.focusOutline": "#00000000",
+        "diffEditor.removedTextBackground": "#ffffff00",
+        "diffEditor.insertedTextBackground": "#ffffff00",
+        "diffEditor.insertedLineBackground": "#00ff0019",
+        "diffEditor.removedLineBackground": "#ff00002d",
+    },
+    "editor.tokenColorCustomizations": {
+        "textMateRules": [
+            {
+                "scope": [
+                    "variable.other.readwrite.alias",
+                    "entity.name.type",
+                ],
+                "settings": {
+                    "foreground": "#4EC9B0"
+                }
+            },
+            {
+                "scope": [
+                    "entity.name.function.python",
+                ],
+                "settings": {
+                    "foreground": "#4FC1FF"
+                }
+            },
+            {
+                "scope": [
+                    "support.type.primitive",
+                    "support.type.python",
+                    "support.function.builtin.python"
+                ],
+                "settings": {
+                    "foreground": "#569CD6"
+                }
+            },
+            {
+                "scope": [
+                    "meta.object-literal.key",
+                    "entity.other.inherited-class.python",
+                    "meta.function-call.generic.python"
+                ],
+                "settings": {
+                    "foreground": "#9CDCFE"
+                }
+            },
+            {
+                "scope": [
+                    "entity.name.function.python",
+                ],
+                "settings": {
+                    "foreground": "#D66060"
+                }
+            },
+            {
+                "scope": [
+                    "meta.brace.square.ts",
+                    "punctuation.definition.arguments"
+                ],
+                "settings": {
+                    "foreground": "#646464"
+                }
+            },
+            {
+                "scope": [
+                    "constant.language",
+                    "support.type.builtin",
+                ],
+                "settings": {
+                    "foreground": "#B5CEA8"
+                }
+            },
+            {
+                "scope": [
+                    "entity.name.function.decorator.python",
+                ],
+                "settings": {
+                    "foreground": "#C586C0"
+                }
+            },
+        ]
+    },
+    "files.exclude": {
+        ".vscode": true,
+        "**/.git": true,
+        "**/.DS_Store": true,
+        // Angular
+        "**/node_modules": true,
+        "**/dist": true,
+        "**/.angular": true,
+        // Unity
+        "**/Keystore": true,
+        "**/Library": true,
+        "**/Logs": true,
+        "**/Packages": true,
+        "**/ProjectSettings": true,
+        "**/Releases": true,
+        "**/Temp": true,
+        "**/UserSettings": true,
+        "**/Saves": true,
+        "**/~": true,
+        "**/*.meta": true,
+        "**/*.utmp": true,
+        "**/*.inputactions": true,
+        "**/*.shadergraph": true,
+        "**/*.cginc": true,
+        "**/*.renderTexture": true,
+        "**/*.unitypackage": true,
+        "**/*.physicMaterial": true,
+        "**/Fonts": true,
+        "**/Materials": true,
+        "**/PhysicMaterials": true,
+        "**/Models": true,
+        "**/Meshes": true,
+        "**/Textures": true,
+        "**/RenderTextures": true,
+        "**/Sprites": true,
+        // "**/Scenes": true,
+        "**/Skies": true,
+        "**/Sounds": true,
+    },
+    "files.watcherExclude": {
+        ".vscode": true,
+        "**/.git": true,
+        "**/.DS_Store": true,
+        // Angular
+        "**/node_modules": true,
+        "**/node_modules/": true,
+        "**/dist": true,
+        "**/.angular": true,
+        // Unity
+        "**/Library": true,
+        "**/Logs": true,
+        "**/Packages": true,
+        "**/ProjectSettings": true,
+        "**/Releases": true,
+        "**/Temp": true,
+        "**/UserSettings": true,
+        "**/Saves": true,
+        "**/~": true,
+        "**/*.meta": true,
+        "**/*.utmp": true,
+        "**/*.inputactions": true,
+        "**/*.shadergraph": true,
+        "**/*.cginc": true,
+        "**/*.renderTexture": true,
+        "**/*.unitypackage": true,
+        "**/*.physicMaterial": true,
+        "**/*.mat": true,
+        "**/*.sln": true,
+        "**/*.fbx": true,
+        "**/*.dae": true,
+        "**/*.3ds": true,
+        "**/*.dxf": true,
+        "**/*.obj": true,
+        "**/*.blend": true,
+        "**/*.bmp": true,
+        "**/*.exr": true,
+        "**/*.gif": true,
+        "**/*.hdr": true,
+        "**/*.iff": true,
+        "**/*.jpg": true,
+        "**/*.pict": true,
+        "**/*.png": true,
+        "**/*.psd": true,
+        "**/*.tga": true,
+        "**/*.tiff": true,
+        "**/*.svg": true,
+        "**/*.aif": true,
+        "**/*.wav": true,
+        "**/*.mp3": true,
+        "**/*.ogg": true,
+        "**/*.ttf": true,
+        "**/*.otf": true,
+        "**/*.asf": true,
+        "**/*.avi": true,
+        "**/*.dv": true,
+        "**/*.m4v": true,
+        "**/*.mov": true,
+        "**/*.mp4": true,
+        "**/*.mpg": true,
+        "**/*.mpeg": true,
+        "**/*.ogv": true,
+        "**/*.vp8": true,
+        "**/*.webm": true,
+        "**/*.wmv": true,
+        "**/*.prefab": true,
+    },
+    "cSpell.language": "en,pt,pt-BR,en-US",
+    "cSpell.userWords": [
+        "Admissao",
+        "Behaviour",
+        "BELEVEL",
+        "bloq",
+        "Bloq",
+        "bmesh",
+        "BOUNDBOX",
+        "cests",
+        "Cests",
+        "Cnae",
+        "cnpj",
+        "Cobranca",
+        "codigo",
+        "Contratacao",
+        "Cooldown",
+        "COPAG",
+        "COPAGAM",
+        "Ctps",
+        "CUBATAO",
+        "datetime",
+        "Demissao",
+        "descricao",
+        "Descricao",
+        "displayer",
+        "Displayer",
+        "dotnet",
+        "echart",
+        "echarts",
+        "EIRUNEPE",
+        "Emissao",
+        "emlx",
+        "endereco",
+        "especificos",
+        "euler",
+        "EXCELENCIA",
+        "faultstring",
+        "FOLLOWTRACK",
+        "funcao",
+        "funcionario",
+        "Funcionario",
+        "gemini",
+        "Historico",
+        "icns",
+        "identificacao",
+        "idname",
+        "importacao",
+        "inscricao",
+        "keymap",
+        "keymaps",
+        "lerp",
+        "Lerp",
+        "Lerping",
+        "Licenca",
+        "linkedin",
+        "mailparser",
+        "Mathf",
+        "mathutils",
+        "MAUAZINHO",
+        "MEDIO",
+        "msvideo",
+        "msword",
+        "Municipio",
+        "ncms",
+        "Ncms",
+        "Obrig",
+        "officedocument",
+        "openxmlformats",
+        "Orgao",
+        "OUTLINER",
+        "pinterest",
+        "playmode",
+        "powerpoint",
+        "Prefs",
+        "presentationml",
+        "Protheus",
+        "razao",
+        "REDENCAO",
+        "remuneracao",
+        "Responsavel",
+        "rigidbody",
+        "Rigidbody",
+        "Scriptable",
+        "Sepr",
+        "showhide",
+        "situacao",
+        "soapenv",
+        "SOLIMOES",
+        "spreadsheetml",
+        "Sufix",
+        "tiktok",
+        "Unid",
+        "Usuario",
+        "verts",
+        "whatsapp",
+        "wireframes",
+        "wordpress",
+        "wordprocessingml",
+        "wsse",
+        "youtube"
+    ],
+    "todo-tree.general.rootFolder": "/mnt/Unidade_D/Renan_Lacerda/Programas/Editores para Programação/VSCode/MD",
+    "todo-tree.general.showActivityBarBadge": false,
+    "todo-tree.general.tags": [
+        "NOTE",
+        "TODO",
+        "FIXME",
+        "MARK",
+        "[ ]",
+        "[x]",
+        "SNIPPET"
+    ],
+    "todo-tree.highlights.defaultHighlight": {
+        "type": "tag",
+        "foreground": "#000000",
+    },
+    "todo-tree.highlights.customHighlight": {
+        "NOTE": {
+            "background": "#FFA500",
+            "iconColour": "#FFA500",
+            "icon": "file"
+        },
+        "TODO": {
+            "background": "#FFD703",
+            "iconColour": "#FFD703",
+            "icon": "tasklist"
+        },
+        "FIXME": {
+            "background": "#FF01FF",
+            "iconColour": "#FF01FF",
+            "icon": "bug"
+        },
+        "MARK": {
+            "background": "#157EFB",
+            "iconColour": "#157EFB",
+            "icon": "tag"
+        },
+        "[ ]": {
+            "background": "#8F0F0F",
+            "iconColour": "#8F0F0F",
+            "icon": "square"
+        },
+        "[x]": {
+            "background": "#6A9955",
+            "iconColour": "#6A9955",
+            "icon": "clock"
+        },
+        "SNIPPET": {
+            "foreground": "#6A9955",
+            "fontWeight": "bold",
+            "iconColour": "#6A9955",
+            "icon": "clock"
+        }
+        // https://primer.style/foundations/icons
+    },
+    "rl.method-order.prefixOrder": [
         // ===== Lifecycle =====
         "constructor",
         // ===== Framework Hooks =====
@@ -17,6 +566,7 @@
         "Instantiate",
         // ===== Cloning =====
         "Clone",
+        "Duplicate",
         // ===== Initialization =====
         "Initialize",
         "Configure",
@@ -32,6 +582,8 @@
         "Associate",
         "Disassociate",
         // ===== Data Access =====
+        "GetStart",
+        "GetEnd",
         "Get",
         "nativeElement",
         // ===== Data Queries =====
@@ -43,9 +595,10 @@
         "Fetch",
         // ===== Data Writes =====
         "Set",
+        "Make",
         // ===== Data Operations =====
         "Add",
-        "Remove",
+        "Insert",
         "Append",
         "Filter",
         "BySession",
@@ -53,14 +606,20 @@
         "Map",
         "transform",
         "Transform",
+        "Capitalize",
         "Sort",
         "Copy",
         "Concat",
+        "Update",
+        "Replace",
         "Subtract",
         "Min",
         "Max",
         "Clamp",
         "Limit",
+        "Remove",
+        "Exclude",
+        "Delete",
         // ===== Type Conversion =====
         "Convert",
         "To",
@@ -84,6 +643,7 @@
         "Exists",
         "Can",
         "can",
+        "Should",
         "In",
         "Check",
         "Validate",
@@ -98,11 +658,15 @@
         "Launch",
         "Wait",
         "Await",
+        "Sleep",
         // ===== Frame Update =====
-        "Tick",
-        "Step",
+        "Fixed",
         "FixedUpdate",
         "Update",
+        "Tick",
+        "Process",
+        "Step",
+        "Lerp",
         "LateUpdate",
         "FrameUpdate",
         // ===== State Management =====
@@ -113,6 +677,8 @@
         "SetEnd",
         "Apply",
         "Assign",
+        "ChangeStart",
+        "ChangeEnd",
         "Change",
         "Prepare",
         "Mark",
@@ -121,6 +687,7 @@
         // ===== Transform Operations =====
         "Move",
         "Translate",
+        "Snap",
         "Position",
         "Rotate",
         "Scale",
@@ -132,6 +699,7 @@
         "Encrypt",
         "Decrypt",
         "Approve",
+        "Disapprove",
         // =====Attempts =====
         "Try",
         // ===== UI Operations =====
@@ -150,6 +718,9 @@
         "Transition",
         "Next",
         "Previous",
+        "Turn",
+        "Jump",
+        "Dash",
         "Dismiss",
         "Resume",
         "Cancel",
@@ -180,6 +751,7 @@
         // ===== File I/O =====
         "Read",
         "Write",
+        "Ensure",
         // ===== Persistence =====
         "Save",
         "Store",
@@ -214,6 +786,8 @@
         "Broadcast",
         // ===== Event Handling =====
         "on",
+        "OnChangeStart",
+        "OnChangeEnd",
         "On",
         "Listen",
         "Perform",
@@ -229,9 +803,6 @@
         "Table",
         "Column",
         "Row",
-        "Insert",
-        "Exclude",
-        "Delete",
         // ===== Logging =====
         "Log",
         "Info",
@@ -250,20 +821,29 @@
         // ===== Finalization =====
         "Reset",
         "Restart",
+        "Reprocess",
         "Finalize",
         "Cleanup"
     ],
-    "rl.method-order.enforceCallOrder": false,
+    "rl.method-order.enforceCallOrder": true,
     "rl.method-order.enforceAlphabeticalOrder": true,
     "rl.method-order.alphabeticalOnlyPrefixes": [
         "Configuration",
         "Composer",
         "Endpoints",
         "Payloads",
+        "Uris",
+        "Urls",
         "Headers",
         "Messages",
         "Builder",
-        // "Service",
+        "Locator",
+        "Generator",
+        "Calculator",
+    ],
+    "rl.method-order.ignoreMethods": [
+        "Verify",
+        "FixedUpdate"
     ],
     "rl.inline-function-call.considerLocalVariables": true,
     "rl.inline-function-call.considerParameters": true,
@@ -275,9 +855,120 @@
         "Validator",
     ],
     "rl.variable-names.ignoreWords": [
-        // "Constants",
-        // "Messages",
+        "response",
+        "cookie",
     ],
-    "rl.block-color.showBackground": true,
     "rl.block-color.showBorder": true,
-    "rl.block-color.defaultColor": "#3A3A3A",
+    "rl.block-color.showBackground": false,
+    "rl.block-color.allowPlainBlock": true,
+    "rl.block-color.defaultColor": "#393939",
+    "rl.block-color.definedMethodColor": "#D66060",
+    "rl.block-color.staticMethodColor": "#9CDCFE",
+    "rl.block-color.newClassColor": "#4EC9B0",
+    "rl.block-color.decoratorColor": "#C586C0",
+    "rl.block-color.ignoreEnums": false,
+    "rl.block-color.ignoredPrefixes": [
+        "Messages",
+        "Path",
+    ],
+    "rl.library.folder": "/mnt/Unidade_D/Renan_Lacerda/Projetos/Bibliotecas",
+    "rl.library.angular-backend": "/mnt/Unidade_D/Renan_Lacerda/Projetos/Bibliotecas/Angular_Backend",
+    "rl.library.angular-frontend": "/mnt/Unidade_D/Renan_Lacerda/Projetos/Bibliotecas/Angular_Frontend",
+    "rl.library.unity": "/mnt/Unidade_D/Renan_Lacerda/Projetos/Bibliotecas/Unity",
+    "foldOnOpen.targets": [
+        "Level2",
+    ],
+    "foldOnOpen.disableFiles": [
+        "**/*.class.ts",
+        "**/*.directive.ts",
+        "**/*.guard.ts",
+        "**/*.pipe.ts",
+        "**/*.select.ts",
+        "**/*.provider.ts",
+        "**/*.module.ts",
+        "**/*.html",
+    ],
+    "classRules.rules": {
+        "Component": {
+            "expansion": true,
+            "injectable": true,
+            "manager": true,
+        },
+        "Class": {},
+        "Movement,Physics,Animation,Input,": {
+            "manager": true,
+        },
+        "Data": {
+            "variables": true,
+        },
+        "Formatter": {
+            "startWith": "To",
+            "checkFirstParam": true,
+            "checkReturn": true
+        },
+        "Checker,Matcher": {
+            "checkFirstParam": true,
+            "checkReturn": true
+        },
+        "Retriever": {
+            "startWith": "Get",
+            "checkFirstParam": true,
+            "checkReturn": true
+        },
+        "Converter": {
+            "startWith": "To",
+            "checkFirstParam": true,
+            "checkReturn": true
+        },
+        "Factory": {
+            "startWith": "Create",
+            "checkReturn": true
+        },
+        "Finder": {
+            "startWith": "By",
+            "checkFirstParam": true,
+            "returnRelated": true,
+            "useError": true
+        },
+        "Filter,Sorter": {
+            "startWith": "By",
+            "checkFirstParam": true,
+            "returnRelated": true
+        },
+        "Provider": {
+            "startWith": "Get",
+            "checkReturn": true
+        },
+        "Handler": {
+            "checkFirstParam": true,
+            "doSomething": true
+        },
+        "Calculator": {
+            "checkReturn": true
+        },
+        "Modifier": {
+            "checkFirstParam": true,
+            "returnRelated": true
+        },
+        "Exception": {
+            "throwAll": true
+        },
+        "Configuration,Builder": {
+            "checkReturn": true
+        },
+        "Messages,Headers,Urls": {
+            "checkReturn": true
+        },
+        "Service": {
+            "doSomething": true,
+            "manager": true,
+        },
+        "Form,Select,Cookie,Server,Table": {
+            "extension": true
+        },
+        "Pipe": {
+            "extension": true,
+            "checkReturn": true
+        },
+    },
+}

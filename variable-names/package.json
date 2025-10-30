@@ -31,7 +31,15 @@
             "type": "string"
           },
           "default": []
-        }
+        },
+          "rl.variable-names.unityAttributeColors": {
+                  "type": "object",
+                    "default": {
+                        "Header": "#7FDBFF",
+                        "SerializeField": "#2ECC40"
+                    },
+                    "description": "Define as cores para atributos do Unity, como Header e SerializeField."
+                }
       }
     }
 }

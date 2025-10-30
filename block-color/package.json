@@ -35,7 +35,7 @@
         "rl.block-color.allowPlainBlock": {
           "type": "boolean",
           "default": false,
-          "description": "Bloco automático"
+          "description": "Bloco automático, para uma cor customizada usar: // Comentário {#9CDCFE}"
         },
         "rl.block-color.defaultColor": {
           "type": "string",
@@ -91,6 +91,11 @@
           "type": "array",
           "default": ["Messages", "Constants", "Service"],
           "description": "Lista de sufixos que não devem ser coloridos"
+        },
+        "rl.block-color.allowPlainBlockTextColor": {
+          "type": "string",
+          "default": "#ffaa00",
+          "description": "Cor utilizada quando allowPlainBlock está habilitado para definir a cor do comentário."
         }
       }
     }

@@ -48,6 +48,14 @@ function updateDiagnostics(document) {
     const config = vscode.workspace.getConfiguration('rl.variable-names');
     const ignoreList = config.get('ignoreWords', []);
 
+    // === NOVO: Configuração de cores para atributos Unity ===
+    const unityColorConfig = config.get('unityAttributeColors', {
+        Header: '#7FDBFF',
+        SerializeField: '#2ECC40',
+        Tooltip: '#FFD700',
+        Range: '#FF851B'
+    });
+
     const diagnostics = [];
     const text = document.getText();
 
@@ -193,7 +201,7 @@ function updateDiagnostics(document) {
             }
         }
 
-} else if (document.languageId === 'csharp') {
+    } else if (document.languageId === 'csharp') {
         // 1) Continua pegando arrays, genéricos e GetComponents
         const csPatterns = [
             /^\s*(?:public|protected|private|internal)?\s*(?:static\s*)?(?:readonly\s*)?\s*(?:[\w\.]+\s*\[\]|\b(?:List|IList|IEnumerable|Collection)<[^>]+>)\s+(\w+)\s*(?:=|;)/gm,
@@ -211,38 +219,34 @@ function updateDiagnostics(document) {
                 }
             }
         }
-// 2) **NOVO**: capturar declarações simples que não são coleções
+
+        // 2) **NOVO**: capturar declarações simples que não são coleções
         const assignPattern = /\b(?:var|int|float|double|bool|string)\s+(\w+)\s*=\s*([^;]+);/g;
         let am;
         while ((am = assignPattern.exec(text)) !== null) {
             const varName = am[1];
             const expr   = am[2].trim();
 
-            // reutiliza as mesmas fases de ignorar literais, regex, lista de exceções etc.
-            if (/^-?\d+(?:\.\d+)?[fFdD]?$/i.test(expr)) continue;         // números
-            if (/^(true|false)$/i.test(expr)) continue;                   // booleanos
-            if (/^(['"`]).*\1$/.test(expr)) continue;                     // strings simples
+            if (/^-?\d+(?:\.\d+)?[fFdD]?$/i.test(expr)) continue;
+            if (/^(true|false)$/i.test(expr)) continue;
+            if (/^(['"`]).*\1$/.test(expr)) continue;
             if (expr.includes('$') && /\{[^}]+\}/.test(expr)) continue;
 
-
-            if (expr.toLowerCase().includes('regex'))              continue;
+            if (expr.toLowerCase().includes('regex')) continue;
             if (ignoreList.some(w => expr.toLowerCase().includes(w.toLowerCase()))) continue;
 
-            // isola partes do nome da variável e da expressão
             const varParts = varName
                 .split(/(?=[A-Z])|_/).map(p=>p.toLowerCase()).filter(Boolean);
             const exprParts = expr
                 .replace(/\bawait\b/gi, '')
                 .split(/[^A-Za-z0-9]+/).map(p=>p.toLowerCase()).filter(Boolean);
 
-            // função auxiliar (singular ↔ plural)
             function variants(w) {
                 if (!w) return [w];
                 if (w.endsWith('s')) return [w.slice(0,-1), w];
                 return [w, w+'s'];
             }
 
-            // verifica se *alguma* variante bate
             const related = varParts.some(vp => {
                 return variants(vp).some(vv =>
                     exprParts.some(ep =>
@@ -260,7 +264,45 @@ function updateDiagnostics(document) {
                 );
             }
         }
+
+         // === NOVO: destacar atributos Unity com cores configuráveis (somente o nome) ===
+        const unityAttrPattern = /\[\s*(Header|SerializeField|Range|Tooltip)\b[^\]]*\]/g;
+        let ua;
+        const decorationTypes = {};
+
+        // cria estilos de cor conforme configuração
+        for (const key of Object.keys(unityColorConfig)) {
+            decorationTypes[key] = vscode.window.createTextEditorDecorationType({
+                color: unityColorConfig[key]
+            });
+        }
+
+        const editor = vscode.window.activeTextEditor;
+        if (editor && editor.document === document) {
+            const decorationsByType = {};
+
+            while ((ua = unityAttrPattern.exec(text)) !== null) {
+                const attrName = ua[1];
+                const colorType = decorationTypes[attrName];
+                if (!colorType) continue;
+
+                // localiza posição exata do nome dentro dos colchetes
+                const attrStart = ua.index + ua[0].indexOf(attrName);
+                const attrEnd = attrStart + attrName.length;
+
+                const startPos = document.positionAt(attrStart);
+                const endPos = document.positionAt(attrEnd);
+
+                if (!decorationsByType[attrName]) decorationsByType[attrName] = [];
+                decorationsByType[attrName].push({ range: new vscode.Range(startPos, endPos) });
+            }
+
+            for (const attrName of Object.keys(decorationsByType)) {
+                editor.setDecorations(decorationTypes[attrName], decorationsByType[attrName]);
+            }
+        }
     }
+
     diagnosticsCollection.set(document.uri, diagnostics);
 }
 

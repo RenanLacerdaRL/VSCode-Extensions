@@ -93,6 +93,21 @@ function findMatchingParenBackward(clean, closePos) {
     return -1;
 }
 
+// encontra parêntese correspondente para ')' em pos (varre para frente)
+function findMatchingParenForward(clean, openPos) {
+    let depth = 0;
+    const len = clean.length;
+    for (let i = openPos; i < len; i++) {
+        const ch = clean[i];
+        if (ch === '(') depth++;
+        else if (ch === ')') {
+            depth--;
+            if (depth === 0) return i;
+        }
+    }
+    return -1;
+}
+
 // retorna índice do caractere não-space mais próximo para trás (cleaned)
 function findPrevNonSpaceIndex(clean, pos) {
     for (let i = pos; i >= 0; i--) {
@@ -181,10 +196,46 @@ function analyzeDocument(doc) {
    - mesma lógica que combinamos: agrupamento por depth, pending por depth,
      uso em qualquer depth consome, aviso só se ocorrência estiver no mesmo depth
      da declaração anterior.
+   - MODIFICAÇÃO: agora IGNORA declarações se **na mesma linha** existir 'for'.
    ------------------------- */
 
 function analyzeSingleMethod(bodyRaw, bodyAbsStart, diagnostics, doc) {
     const clean = stripCommentsAndStringsPreserve(bodyRaw);
+
+    // detectar ranges de cabeçalhos 'for(...)' no corpo (relativos a bodyRaw/clean) — mantido para possível uso futuro
+    const forRanges = [];
+    const forRegex = /\bfor\s*\(/g;
+    let fm;
+    while ((fm = forRegex.exec(clean)) !== null) {
+        const forPos = fm.index;
+        // localizar o parêntese '(' após 'for'
+        const openParen = clean.indexOf('(', forPos);
+        if (openParen === -1) continue;
+        const closeParen = findMatchingParenForward(clean, openParen);
+        if (closeParen === -1) continue;
+        // armazenar intervalo [openParen, closeParen] (relativo a clean/bodyRaw)
+        forRanges.push([openParen, closeParen]);
+        // avançar regex para depois do closeParen
+        forRegex.lastIndex = closeParen + 1;
+    }
+
+    function isInForHeader(relIndex) {
+        for (const r of forRanges) {
+            if (relIndex >= r[0] && relIndex <= r[1]) return true;
+        }
+        return false;
+    }
+
+    // Nova função: verifica se na MESMA LINHA do índice relativo existe a palavra 'for'
+    function isForOnSameLine(relIndex) {
+        // encontra início da linha (último '\n' antes de relIndex)
+        const lineStart = clean.lastIndexOf('\n', relIndex - 1);
+        const lineEnd = clean.indexOf('\n', relIndex);
+        const start = lineStart === -1 ? 0 : lineStart + 1;
+        const end = lineEnd === -1 ? clean.length : lineEnd;
+        const line = clean.substring(start, end);
+        return /\bfor\b/.test(line);
+    }
 
     const declRegex = /\b(?:var|let|const|float|double|int|long|bool|byte|short|char|string|Vector[0-9]*|Rigidbody|Transform|GameObject|Quaternion)\s+([A-Za-z_]\w*)\b/g;
     const decls = [];
@@ -192,6 +243,11 @@ function analyzeSingleMethod(bodyRaw, bodyAbsStart, diagnostics, doc) {
     while ((dm = declRegex.exec(clean)) !== null) {
         const name = dm[1];
         const rel = dm.index + dm[0].lastIndexOf(name);
+
+        // **ALTERAÇÃO AQUI**: se na mesma linha existir 'for', IGNORA a declaração (pedido do usuário)
+        if (isForOnSameLine(rel)) continue;
+
+        // (não removemos outros comportamentos — se precisar podemos combinar isInForHeader também)
         const abs = bodyAbsStart + rel;
         const depth = computeRelDepth(clean, rel);
         decls.push({ name, declRelIndex: rel, declAbsIndex: abs, depth });

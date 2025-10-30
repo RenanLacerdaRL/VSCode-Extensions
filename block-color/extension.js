@@ -18,7 +18,8 @@ function getConfig() {
         enableDecoratorColor: cfg.get('enableDecoratorColor', true),
         ignoreEnums: cfg.get('ignoreEnums', true),
         ignoredPrefixes: cfg.get('ignoredPrefixes', []),
-        allowPlainBlock: cfg.get('allowPlainBlock', false)
+        allowPlainBlock: cfg.get('allowPlainBlock', false),
+        allowPlainBlockTextColor: cfg.get('allowPlainBlockTextColor', '#ffaa00') // nova configuração
     };
 }
 
@@ -31,7 +32,7 @@ function activate(context) {
             if (editor) updateDecorations(editor);
         }),
         vscode.workspace.onDidChangeTextDocument(e => {
-            if (vscode.window.activeTextEditor && e.document === e.document) {
+            if (vscode.window.activeTextEditor && e.document === vscode.window.activeTextEditor.document) {
                 updateDecorations(vscode.window.activeTextEditor);
             }
         }),
@@ -49,7 +50,9 @@ function activate(context) {
                 e.affectsConfiguration('rl.block-color.enableDefinedMethodColor') ||
                 e.affectsConfiguration('rl.block-color.enableDecoratorColor') ||
                 e.affectsConfiguration('rl.block-color.ignoreEnums') ||
-                e.affectsConfiguration('rl.block-color.ignoredPrefixes')
+                e.affectsConfiguration('rl.block-color.ignoredPrefixes') ||
+                e.affectsConfiguration('rl.block-color.allowPlainBlock') ||
+                e.affectsConfiguration('rl.block-color.allowPlainBlockTextColor')
             ) {
                 if (vscode.window.activeTextEditor) {
                     updateDecorations(vscode.window.activeTextEditor);
@@ -129,7 +132,7 @@ function getImportedEnumNames(lines) {
 
 // Função principal
 function updateDecorations(editor) {
-   const config = getConfig();
+    const config = getConfig();
     const {
         showBackground,
         showBorder,
@@ -144,66 +147,139 @@ function updateDecorations(editor) {
         enableDecoratorColor,
         ignoreEnums,
         ignoredPrefixes,
-        allowPlainBlock               // <── NOVO
+        allowPlainBlock,
+        allowPlainBlockTextColor
     } = config;
 
     const doc = editor.document;
     const lines = doc.getText().split(/\r?\n/);
 
+    if (lines.length > 0 && lines[lines.length - 1].trim() === '') {
+        lines.pop();
+    }
+
     decorationTypes.forEach(d => d.dispose());
     decorationTypes = [];
 
-    // --- Ajuste das regex ---
-const reHex = /^(\s*)\/\/.*?\{\s*(#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}))\s*\}/;
-const reDefault = /^(\s*)\/\/.*?#([A-Z][\w]*)\b/;
-const rePlain = /^(\s*)\/\/\s*([A-Z][\w]*)\b/; // se allowPlainBlock
+    const reHex = /^(\s*)\/\/.*?\{\s*(#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}))\s*\}/;
+    const reDefault = /^(\s*)\/\/.*?#([\w-]+)\b/;
+    const rePlain = /^(\s*)\/\/\s*([\w-]+)\b/;
 
-const starts = [];
+    const starts = [];
 
-let braceDepth = 0;
-let classDepth = 0;
+    let braceDepth = 0;
+    let classDepth = 0;
 
-lines.forEach((ln, idx) => {
-    // Atualiza profundidade antes de checar comentários
-    if (/\bclass\b/.test(ln)) {
-        // Encontrou declaração de classe
-        classDepth++;
-    }
+    lines.forEach((ln, idx) => {
+        if (/\bclass\b/.test(ln)) {
+            classDepth++;
+        }
 
-    // Conta chaves da linha (simples, mas cobre casos comuns)
-    const openCount = (ln.match(/{/g) || []).length;
-    const closeCount = (ln.match(/}/g) || []).length;
-    braceDepth += openCount - closeCount;
+        const openCount = (ln.match(/{/g) || []).length;
+        const closeCount = (ln.match(/}/g) || []).length;
+        braceDepth += openCount - closeCount;
 
-    // Só considera comentários se dentro de uma classe e fora de métodos
-    if (classDepth > 0 && braceDepth === 1) {
-        const mHex = reHex.exec(ln);
-        const mDefault = reDefault.exec(ln);
+        if (classDepth > 0 && braceDepth === 1) {
+            const mHex = reHex.exec(ln);
+            const mDefault = reDefault.exec(ln);
 
-        if (mHex) {
-            starts.push({ line: idx, color: mHex[2] });
-        } else if (mDefault) {
-            starts.push({ line: idx, color: defaultColor });
-        } else if (allowPlainBlock) {
-            const mPlain = rePlain.exec(ln);
-            if (mPlain) starts.push({ line: idx, color: defaultColor });
+            if (mHex) {
+                starts.push({ line: idx, color: mHex[2] });
+            } else if (mDefault) {
+                starts.push({ line: idx, color: defaultColor });
+            } else if (allowPlainBlock) {
+                const mPlain = rePlain.exec(ln);
+                if (mPlain) {
+                    // adiciona cor para o texto do comentário
+                    const textDeco = vscode.window.createTextEditorDecorationType({
+                        color: allowPlainBlockTextColor
+                    });
+                    decorationTypes.push(textDeco);
+
+                    editor.setDecorations(
+                        textDeco,
+                        [new vscode.Range(idx, ln.indexOf('//'), idx, ln.length)]
+                    );
+
+                    // ainda marca o bloco para borda/fundo normal
+                    starts.push({ line: idx, color: defaultColor });
+                }
+            }
+        }
+
+        if (classDepth > 0 && braceDepth === 0) {
+            classDepth = 0;
+        }
+    });
+
+    const blocks = [];
+    for (let i = 0; i < starts.length; i++) {
+        const startLine = starts[i].line;
+        const color = starts[i].color;
+        const endLine = (i + 1 < starts.length) ? starts[i + 1].line - 1 : lines.length - 1;
+        if (endLine >= startLine) {
+            blocks.push({ start: startLine, end: endLine, color });
         }
     }
 
-    // Se saímos totalmente da classe, zera
-    if (classDepth > 0 && braceDepth === 0) {
-        classDepth = 0;
-    }
-});
+    for (let k = 0; k < blocks.length; k++) {
+        const { start: startLine, end: endLine, color } = blocks[k];
 
-    for (let k = 0; k < starts.length; k++) {
-        const { line: startLine, color } = starts[k];
-        const endLine = (k + 1 < starts.length) ? starts[k + 1].line - 1 : lines.length - 1;
-        if (endLine < startLine) continue;
+        const hasPrev = k > 0 && (blocks[k - 1].end + 1 === startLine);
+        const hasNext = k < blocks.length - 1 && (endLine + 1 === blocks[k + 1].start);
 
-        const topDeco = createTopDecoration(color, showBackground, showBorder);
+        if (startLine === endLine) {
+            const topBorder = !hasPrev;
+            const bottomBorder = !hasNext;
+            const borderWidth = `${topBorder ? 1 : 0}px 1px ${bottomBorder ? 1 : 0}px 1px`;
+            let borderRadius = '0 0 0 0';
+            if (topBorder && bottomBorder) borderRadius = '4px 4px 4px 4px';
+            else if (topBorder && !bottomBorder) borderRadius = '4px 4px 0 0';
+            else if (!topBorder && bottomBorder) borderRadius = '0 0 4px 4px';
+
+            const singleDeco = vscode.window.createTextEditorDecorationType({
+                isWholeLine: true,
+                ...(showBorder && {
+                    borderWidth,
+                    borderStyle: 'solid',
+                    borderColor: color,
+                    borderRadius
+                }),
+                ...(showBackground && { backgroundColor: color + '10' })
+            });
+
+            decorationTypes.push(singleDeco);
+            editor.setDecorations(singleDeco, [new vscode.Range(startLine, 0, startLine, lines[startLine].length)]);
+            continue;
+        }
+
+        const topDeco = hasPrev
+            ? vscode.window.createTextEditorDecorationType({
+                isWholeLine: true,
+                ...(showBorder && {
+                    borderWidth: '0 1px 0 1px',
+                    borderStyle: 'solid',
+                    borderColor: color
+                }),
+                ...(showBackground && { backgroundColor: color + '10' })
+            })
+            : createTopDecoration(color, showBackground, showBorder);
+
         const midDeco = createMiddleDecoration(color, showBackground, showBorder);
-        const botDeco = createBottomDecoration(color, showBackground, showBorder);
+
+        const botDeco = hasNext
+            ? vscode.window.createTextEditorDecorationType({
+                isWholeLine: true,
+                ...(showBorder && {
+                    borderWidth: '0 1px 1px 1px',
+                    borderStyle: 'solid',
+                    borderColor: color,
+                    borderRadius: '0 0 0 0'
+                }),
+                ...(showBackground && { backgroundColor: color + '10' })
+            })
+            : createBottomDecoration(color, showBackground, showBorder);
+
         decorationTypes.push(topDeco, midDeco, botDeco);
 
         editor.setDecorations(topDeco, [new vscode.Range(startLine, 0, startLine, lines[startLine].length)]);
@@ -216,45 +292,58 @@ lines.forEach((ln, idx) => {
             editor.setDecorations(midDeco, midRanges);
         }
 
-        if (endLine > startLine) {
-            editor.setDecorations(botDeco, [new vscode.Range(endLine, 0, endLine, lines[endLine].length)]);
-        }
+        editor.setDecorations(botDeco, [new vscode.Range(endLine, 0, endLine, lines[endLine].length)]);
     }
 
-    // Detecta enums
     const docText = doc.getText();
     const enumsFound = ignoreEnums ? getEnumNames(docText) : new Set();
     const importedEnums = ignoreEnums ? getImportedEnumNames(lines) : new Set();
     const allEnums = new Set([...enumsFound, ...importedEnums]);
 
-    // Métodos estáticos
     if (enableStaticNames) {
-        const staticMethodDecoration = vscode.window.createTextEditorDecorationType({ color: staticMethodColor });
-        decorationTypes.push(staticMethodDecoration);
+    // calcula, por linha, se estamos dentro do corpo de uma classe
+    const inClassPerLine = [];
+    let braceDepthScan = 0;
+    let classSeen = false;
+    lines.forEach((ln, idx) => {
+        if (/\bclass\b/.test(ln)) classSeen = true;
+        const openCount = (ln.match(/{/g) || []).length;
+        const closeCount = (ln.match(/}/g) || []).length;
+        braceDepthScan += openCount - closeCount;
 
-        const staticClassRegex = /\b([A-Z]\w*)\b(?=\.)/g;
-        const staticClassRanges = [];
+        // estamos "dentro da classe" quando já vimos a palavra class e
+        // o depth de chaves é maior que zero (ou quando a chave de abertura está na mesma linha)
+        inClassPerLine[idx] = classSeen && braceDepthScan > 0;
+    });
 
-        lines.forEach((text, line) => {
-            if (text.trim().startsWith('//')) return;
+    const staticMethodDecoration = vscode.window.createTextEditorDecorationType({ color: staticMethodColor });
+    decorationTypes.push(staticMethodDecoration);
 
-            let m;
-            while ((m = staticClassRegex.exec(text)) !== null) {
-                const start = m.index;
-                const className = m[1];
-                const prefix = text.slice(Math.max(0, start - 10), start);
-                if (/(?:\bthis|\bsuper)(\?\.)?\.$/.test(prefix)) continue;
-                if (ignoreEnums && allEnums.has(className)) continue;
-                if (ignoredPrefixes.some(ignored => className.endsWith(ignored))) continue;
+    const staticClassRegex = /\b([A-Z]\w*)\b(?=\.)/g;
+    const staticClassRanges = [];
 
-                staticClassRanges.push(new vscode.Range(line, start, line, start + className.length));
-            }
-        });
+    lines.forEach((text, line) => {
+        const t = text.trim();
+        // ignora comentários, imports/usings e também ignora linhas fora de classes
+        if (t.startsWith('//') || t.startsWith('using') || t.startsWith('import') || !inClassPerLine[line]) return;
 
-        editor.setDecorations(staticMethodDecoration, staticClassRanges);
-    }
+        staticClassRegex.lastIndex = 0;
+        let m;
+        while ((m = staticClassRegex.exec(text)) !== null) {
+            const start = m.index;
+            const className = m[1];
+            const prefix = text.slice(Math.max(0, start - 10), start);
+            if (/(?:\bthis|\bsuper)(\?\.)?\.$/.test(prefix)) continue;
+            if (ignoreEnums && allEnums.has(className)) continue;
+            if (ignoredPrefixes.some(ignored => className.endsWith(ignored))) continue;
 
-    // Classes instanciadas com "new"
+            staticClassRanges.push(new vscode.Range(line, start, line, start + className.length));
+        }
+    });
+
+    editor.setDecorations(staticMethodDecoration, staticClassRanges);
+}
+
     if (enableNewClassNames) {
         const newClassDecoration = vscode.window.createTextEditorDecorationType({ color: newClassColor });
         decorationTypes.push(newClassDecoration);
@@ -277,13 +366,11 @@ lines.forEach((ln, idx) => {
         editor.setDecorations(newClassDecoration, newClassRanges);
     }
 
-    // Métodos definidos no próprio arquivo
     if (enableDefinedMethodColor) {
         const definedMethodDecoration = vscode.window.createTextEditorDecorationType({ color: definedMethodColor });
         decorationTypes.push(definedMethodDecoration);
 
         const definedMethodRanges = [];
-//         const methodRegex = /\b(?:public|private|protected|async\s+)?([A-Za-z_]\w*)\s*\([^)]*\)\s*(?::\s*[\w<>,\s]+)?\s*\{/g;
         const methodRegex = /\b(?:public|private|protected|async\s+)?([A-Za-z_]\w*)\s*\([^)]*\)\s*(?::\s*[^({\n]+)?\s*{/g;
 
         lines.forEach((text, line) => {
@@ -304,7 +391,6 @@ lines.forEach((ln, idx) => {
         editor.setDecorations(definedMethodDecoration, definedMethodRanges);
     }
 
-    // Decorators @
     if (enableDecoratorColor) {
         const decoratorDecoration = vscode.window.createTextEditorDecorationType({ color: decoratorColor });
         decorationTypes.push(decoratorDecoration);
@@ -313,8 +399,8 @@ lines.forEach((ln, idx) => {
         const decoratorRanges = [];
 
         lines.forEach((text, line) => {
-             const trimmed = text.trim();
-             if (trimmed.startsWith('//') || trimmed.startsWith('import')) return;
+            const trimmed = text.trim();
+            if (trimmed.startsWith('//') || trimmed.startsWith('import')) return;
 
             let m;
             while ((m = decoratorRegex.exec(text)) !== null) {

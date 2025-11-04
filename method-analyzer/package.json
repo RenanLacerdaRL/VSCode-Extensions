@@ -58,11 +58,6 @@
           "type": "boolean",
           "default": true,
           "description": "Se verdadeiro, aplica ordenação alfabética dentro de cada grupo de prefixos."
-        },
-        "rl.method-analyzer.ignoreMethods": {
-          "type": "array",
-          "default": ["constructor"],
-          "description": "Métodos ignorados pela análise de ordem e prefixos."
         }
       }
     }

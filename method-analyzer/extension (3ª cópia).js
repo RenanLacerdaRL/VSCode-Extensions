@@ -118,34 +118,26 @@ async function analyzePrefixRules(document) {
     }
 
     // helper: coleta nomes de métodos (recursivamente) de um symbol (filhos)
-    function collectMethodNames(symbol, parentKind) {
-    const names = [];
-    if (!symbol || !symbol.children) return names;
-
-    for (const child of symbol.children) {
-        // só processa métodos se o pai for uma classe
-        if (parentKind === vscode.SymbolKind.Class) {
-            if (child.kind === vscode.SymbolKind.Method ||
-                child.kind === vscode.SymbolKind.Function ||
-                child.kind === vscode.SymbolKind.Constructor) {
-                names.push(child.name);
+    function collectMethodNames(symbol) {
+        const names = [];
+        if (!symbol || !symbol.children) return names;
+        const stack = [...symbol.children];
+        while (stack.length) {
+            const cur = stack.shift();
+            // aceita Method, Function, Constructor (e Property opcional dependendo do language)
+            if (cur.kind === vscode.SymbolKind.Method ||
+                cur.kind === vscode.SymbolKind.Function ||
+                cur.kind === vscode.SymbolKind.Constructor) {
+                if (cur.name) names.push(cur.name);
             }
-            // arrow functions em propriedades
-            else if (child.kind === vscode.SymbolKind.Property &&
-                     child.children &&
-                     child.children.some(ch => ch.kind === vscode.SymbolKind.Method || ch.kind === vscode.SymbolKind.Function)) {
-                names.push(child.name);
+            // às vezes métodos aparecem como Property (ex: arrow functions em campos) — pegamos se o child for function-like
+            else if (cur.kind === vscode.SymbolKind.Property && cur.children && cur.children.some(ch => ch.kind === vscode.SymbolKind.Function || ch.kind === vscode.SymbolKind.Method)) {
+                names.push(cur.name);
             }
+            if (cur.children && cur.children.length) stack.push(...cur.children);
         }
-
-        // chama recursivamente passando o tipo atual como parentKind
-        if (child.children && child.children.length) {
-            names.push(...collectMethodNames(child, child.kind));
-        }
+        return names;
     }
-
-    return names;
-}
 
     let classSymbols = [];
     if (Array.isArray(docSymbols) && docSymbols.length) {
@@ -174,43 +166,14 @@ async function analyzePrefixRules(document) {
             let classBody = text.slice(braceOpenIndex + 1, braceCloseIndex);
             classBody = classBody.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(?<!:)\/\/.*$/gm, '');
 
-if (methods.length === 0 && classMatch) {
-    const classIndex = classMatch.index;
-    const braceOpen = text.indexOf('{', classIndex);
-    const braceClose = findMatchingBrace(text, braceOpen);
-
-    if (braceOpen !== -1 && braceClose !== -1) {
-        const classBody = text.slice(braceOpen + 1, braceClose);
-
-        // Regex melhorada:
-        // - usa lookbehind para garantir que NÃO seja precedido por "." ou por caractere de palavra
-        // - captura nomes válidos de identificador e a abertura de bloco '{'
-        // Ex.: vai casar "ngOnInit() {" mas NÃO "PageService.WaitRefresh(async () => {"
-        const methodSig = /(?<![\.\w$])([A-Za-z_$][\w$]*)\s*\([^)]*\)\s*(?::\s*[\w<>\[\],\s]+)?\s*\{/g;
-        let sig;
-        while ((sig = methodSig.exec(classBody)) !== null) {
-            const sigIdx = sig.index;
-
-            // calcula profundidade de chaves até a posição da assinatura para garantir que esteja no nível 0
-            let depth = 0;
-            for (let i = 0; i < sigIdx; i++) {
-                const ch = classBody[i];
-                if (ch === '{') depth++;
-                else if (ch === '}') depth--;
+            let methods = [];
+            if (document.languageId === "csharp") {
+                const methodRegex = /^\s*(?:public|private|protected|internal|static|async|virtual|override|sealed|extern|new|readonly|unsafe|abstract)?\s*(?:[\w<>\[\],\s]+\s+)?([A-Za-z_]\w*)\s*\([^)]*\)\s*(?:\{|=>)/gm;
+                methods = [...classBody.matchAll(methodRegex)].map(m => m[1]);
+            } else {
+                const methodRegex = /^\s*(?:public|protected|private)?\s*(?:static\s*)?(?:async\s*)?(?:get\s+|set\s+)?(?:[\w<>\[\],\s]+\s+)?([A-Za-z_$][\w$]*)\s*\([^)]*\)\s*(?:\{|=>)/gm;
+                methods = [...classBody.matchAll(methodRegex)].map(m => m[1]);
             }
-
-            // se depth === 0 => assinatura está no nível direto do corpo da classe
-            if (depth === 0) {
-                const name = sig[1];
-                if (!controlKeywords.includes(name)) {
-                    const methodStart = braceOpen + 1 + sigIdx;
-                    const nameStart = methodStart + sig[0].indexOf(name);
-                    methods.push({ name, start: methodStart, nameStart });
-                }
-            }
-        }
-    }
-}
             methods = Array.from(new Set(methods.filter(Boolean)));
             checkPrefixOrder(document, className, methods, diagnostics, classIndex);
         }
@@ -224,8 +187,7 @@ if (methods.length === 0 && classMatch) {
         const className = cls.name;
 
         // coleta apenas os nomes dos métodos (usando o Outline)
-        const methods = Array.from(new Set(collectMethodNames(cls, vscode.SymbolKind.Class)));
-
+        const methods = Array.from(new Set(collectMethodNames(cls)));
 
         // calcula offset a partir do range do símbolo para usar nas diagnostics
         const classOffset = document.offsetAt(cls.range.start);
@@ -296,17 +258,17 @@ function checkPrefixOrder(document, className, methods, diagnostics, classOffset
         }
     }
 
-if (offendingMethods.length > 0) {
-    const range = findClassNameRange(document, className, classOffset);
-    const uniqueMethods = Array.from(new Set(offendingMethods)); // remove duplicatas
-    const message = `Métodos com prefixos errados: ${uniqueMethods.join(', ')}`;
+    if (offendingMethods.length > 0) {
+        const range = findClassNameRange(document, className, classOffset);
+        // **Ajuste solicitado:** mostrar apenas os nomes dos métodos fora, sem a frase genérica.
+        const message = offendingMethods.join(', ');
 
-    diagnostics.push(new vscode.Diagnostic(
-        range,
-        message,
-        vscode.DiagnosticSeverity.Warning
-    ));
-}
+        diagnostics.push(new vscode.Diagnostic(
+            range,
+            message,
+            vscode.DiagnosticSeverity.Warning
+        ));
+    }
 }
 
 function provideClassHover(document, position) {
@@ -449,16 +411,16 @@ function analyzeMethodOrder(document) {
             }
         });
 
-//         if (offending.length > 0) {
-//             // **Ajuste solicitado:** mostrar somente os nomes dos métodos fora (sem frase genérica)
-//             const range = findClassNameRange(document, className, 0);
-//             const message = offending.join(', ');
-//             diagnostics.push(new vscode.Diagnostic(
-//                 range,
-//                 message,
-//                 vscode.DiagnosticSeverity.Warning
-//             ));
-//         }
+        if (offending.length > 0) {
+            // **Ajuste solicitado:** mostrar somente os nomes dos métodos fora (sem frase genérica)
+            const range = findClassNameRange(document, className, 0);
+            const message = offending.join(', ');
+            diagnostics.push(new vscode.Diagnostic(
+                range,
+                message,
+                vscode.DiagnosticSeverity.Warning
+            ));
+        }
     }
 
     // Se a classe usa apenas ordenação alfabética (ignoreUnknownPrefixes) e enforceAlphabeticalOrder

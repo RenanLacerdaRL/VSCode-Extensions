@@ -23,17 +23,20 @@ function activate(context) {
             csharp: /^\s*(var|[A-Za-z_]\w*(<.*>)?(\[\])?)\s+\w+/
         };
 
-        const langId = document.languageId.startsWith('typescript') ? 'typescript' :
-            document.languageId.startsWith('javascript') ? 'javascript' : 'csharp';
+        const langId =
+            document.languageId.startsWith('typescript') ? 'typescript' :
+            document.languageId.startsWith('javascript') ? 'javascript' :
+            'csharp';
         const varPattern = varStartRegex[langId];
 
         for (let i = 0; i < lines.length - 1; i++) {
             const line = lines[i];
             const trimmed = line.trim();
 
-            // Em C#, ignora linhas não indentadas (fora de métodos)
+            // C#: ignora linhas não indentadas (fora de métodos)
             if (langId === 'csharp' && line === trimmed) continue;
-            // Em C#, ignora assinaturas de método
+
+            // C#: ignora assinaturas de método
             if (langId === 'csharp' && trimmed.endsWith('{') && trimmed.includes('(') && trimmed.includes(')')) continue;
 
             if (!varPattern.test(trimmed)) continue;
@@ -55,10 +58,10 @@ function activate(context) {
 
             const isNextLineAnotherVar = varPattern.test(nextLine);
             const isNextLineComment = nextLine.startsWith('//') || nextLine.startsWith('/*');
-//             const isNextLineReturn = nextLine.startsWith('return');
             const isNextLineClosingBrace = nextLine === '}';
+            const isNextLineAttribute = nextLine.startsWith('['); // 👈 NOVO: ignora atributos do Unity e C#
 
-            // NOVO: Ignorar se estiver dentro de um bloco de case (linha anterior termina com ':' ou começa com 'case')
+            // Ignorar blocos "case" em switch
             let isInsideCaseBlock = false;
             for (let k = i; k >= 0; k--) {
                 const prevLine = lines[k].trim();
@@ -75,8 +78,8 @@ function activate(context) {
                 nextLine !== '' &&
                 !isNextLineAnotherVar &&
                 !isNextLineComment &&
-//                 !isNextLineReturn &&
                 !isNextLineClosingBrace &&
+                !isNextLineAttribute && // 👈 evita avisos antes de atributos [SerializeField], etc.
                 !isInsideCaseBlock
             ) {
                 const range = new vscode.Range(

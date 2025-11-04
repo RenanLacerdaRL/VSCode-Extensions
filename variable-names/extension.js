@@ -37,7 +37,8 @@ function singularPluralVariants(word) {
     }
 }
 
-function updateDiagnostics(document) {
+// NOTE: função async para permitir chamadas ao hover provider
+async function updateDiagnostics(document) {
     const langs = ['typescript', 'typescriptreact', 'javascript', 'javascriptreact', 'csharp'];
 
     if (!langs.includes(document.languageId)) {
@@ -202,6 +203,63 @@ function updateDiagnostics(document) {
         }
 
     } else if (document.languageId === 'csharp') {
+        // ===== ADIÇÃO: detectar var x = ...; usando hover provider para inferir tipos de array =====
+        // patterns para var assignments simples
+        const varAssignPattern = /\bvar\s+(\w+)\s*=\s*([^;]+);/g;
+        let vm;
+        const hoverArrayIndicators = [/\[\]/, /\bArray\b/i, /\bIEnumerable</i, /RaycastHit\[/i, /\bGetComponents?<\w+/i];
+
+        while ((vm = varAssignPattern.exec(text)) !== null) {
+            const varName = vm[1];
+            const expression = vm[2].trim();
+            const idx = vm.index + vm[0].indexOf(varName);
+
+            // Ignorar literais simples e casos óbvios
+            if (/^(?:-?\d+(?:\.\d+)?[fFdD]?|true|false)$/.test(expression)) continue;
+            if (/^(['"`]).*\1$/.test(expression)) continue;
+            if (expression.toLowerCase().includes('regex')) continue;
+            if (ignoreList.some(w => expression.toLowerCase().includes(w.toLowerCase()))) continue;
+
+            // Se já terminar com s, não precisa avisar
+            if (varName.endsWith('s')) continue;
+
+            // Tentar usar o hover provider para obter o tipo inferido pelo language server
+            try {
+                const pos = document.positionAt(vm.index + vm[0].indexOf(varName));
+                const hovers = await vscode.commands.executeCommand('vscode.executeHoverProvider', document.uri, pos);
+
+                if (Array.isArray(hovers) && hovers.length > 0) {
+                    let hoverText = '';
+                    for (const h of hovers) {
+                        if (Array.isArray(h.contents)) {
+                            for (const c of h.contents) {
+                                if (typeof c === 'string') hoverText += c + '\n';
+                                else if (c.value) hoverText += c.value + '\n';
+                                else if (c.markdown) hoverText += (c.markdown || '') + '\n';
+                            }
+                        } else if (h.contents && h.contents.value) {
+                            hoverText += h.contents.value + '\n';
+                        }
+                    }
+
+                    // verificar indicadores de array no hover
+                    const isArrayByHover = hoverText && hoverArrayIndicators.some(rx => rx.test(hoverText));
+                    if (isArrayByHover) {
+                        addDiagnostic(varName, idx);
+                        continue;
+                    }
+                }
+            } catch (e) {
+                // se o hover falhar por qualquer motivo, continuamos com heurísticas antigas abaixo
+            }
+
+            // heurística adicional: métodos que terminam em All (SphereCastAll, RaycastAll, etc) -> array
+            if (/\b[A-Za-z0-9_\.]*All\s*\(/.test(expression) || /\bGetComponents?</.test(expression)) {
+                addDiagnostic(varName, idx);
+                continue;
+            }
+        }
+
         // 1) Continua pegando arrays, genéricos e GetComponents
         const csPatterns = [
             /^\s*(?:public|protected|private|internal)?\s*(?:static\s*)?(?:readonly\s*)?\s*(?:[\w\.]+\s*\[\]|\b(?:List|IList|IEnumerable|Collection)<[^>]+>)\s+(\w+)\s*(?:=|;)/gm,
@@ -209,10 +267,20 @@ function updateDiagnostics(document) {
             /\bvar\s+(\w+)\s*=\s*[\w\.]*GetComponents?<[^>]+>\(\)/g
         ];
 
+        // Tipos que não são arrays, ignorar na regra de plural
+        const nonArrayTypes = ['Vector3', 'Vector2', 'Quaternion', 'Color', 'Matrix4x4'];
+
         for (const pattern of csPatterns) {
             let m;
             while ((m = pattern.exec(text)) !== null) {
                 const varName = m[1];
+
+                // Ajuste: ignorar nonArrayTypes para var ... = new Type(
+                if (pattern.toString().includes('var\\s+')) {
+                    const typeMatch = text.slice(m.index).match(/new\s+([\w\.]+)\s*\(/);
+                    if (typeMatch && nonArrayTypes.includes(typeMatch[1])) continue;
+                }
+
                 if (!varName.endsWith('s')) {
                     const idx = m.index + m[0].indexOf(varName);
                     addDiagnostic(varName, idx);
@@ -266,41 +334,48 @@ function updateDiagnostics(document) {
         }
 
          // === NOVO: destacar atributos Unity com cores configuráveis (somente o nome) ===
-        const unityAttrPattern = /\[\s*(Header|SerializeField|Range|Tooltip)\b[^\]]*\]/g;
-        let ua;
-        const decorationTypes = {};
+        const unityAttrPattern = /\[\s*(Header|SerializeField|Range|Tooltip|Serializable|System\.Serializable)\b[^\]]*\]/g;
 
-        // cria estilos de cor conforme configuração
-        for (const key of Object.keys(unityColorConfig)) {
-            decorationTypes[key] = vscode.window.createTextEditorDecorationType({
-                color: unityColorConfig[key]
-            });
+let ua;
+const decorationTypes = {};
+
+// cria estilos de cor conforme configuração
+for (const key of Object.keys(unityColorConfig)) {
+    decorationTypes[key] = vscode.window.createTextEditorDecorationType({
+        color: unityColorConfig[key]
+    });
+}
+
+const editor = vscode.window.activeTextEditor;
+if (editor && editor.document === document) {
+    const decorationsByType = {};
+
+    while ((ua = unityAttrPattern.exec(text)) !== null) {
+        let attrName = ua[1];
+
+        // ✅ NOVO: tratar Serializable/System.Serializable como SerializeField
+        if (attrName === 'Serializable' || attrName === 'System.Serializable') {
+            attrName = 'SerializeField';
         }
 
-        const editor = vscode.window.activeTextEditor;
-        if (editor && editor.document === document) {
-            const decorationsByType = {};
+        const colorType = decorationTypes[attrName];
+        if (!colorType) continue;
 
-            while ((ua = unityAttrPattern.exec(text)) !== null) {
-                const attrName = ua[1];
-                const colorType = decorationTypes[attrName];
-                if (!colorType) continue;
+        // localiza posição exata do nome dentro dos colchetes
+        const attrStart = ua.index + ua[0].indexOf(ua[1]);
+        const attrEnd = attrStart + ua[1].length;
 
-                // localiza posição exata do nome dentro dos colchetes
-                const attrStart = ua.index + ua[0].indexOf(attrName);
-                const attrEnd = attrStart + attrName.length;
+        const startPos = document.positionAt(attrStart);
+        const endPos = document.positionAt(attrEnd);
 
-                const startPos = document.positionAt(attrStart);
-                const endPos = document.positionAt(attrEnd);
+        if (!decorationsByType[attrName]) decorationsByType[attrName] = [];
+        decorationsByType[attrName].push({ range: new vscode.Range(startPos, endPos) });
+    }
 
-                if (!decorationsByType[attrName]) decorationsByType[attrName] = [];
-                decorationsByType[attrName].push({ range: new vscode.Range(startPos, endPos) });
-            }
-
-            for (const attrName of Object.keys(decorationsByType)) {
-                editor.setDecorations(decorationTypes[attrName], decorationsByType[attrName]);
-            }
-        }
+    for (const attrName of Object.keys(decorationsByType)) {
+        editor.setDecorations(decorationTypes[attrName], decorationsByType[attrName]);
+    }
+}
     }
 
     diagnosticsCollection.set(document.uri, diagnostics);

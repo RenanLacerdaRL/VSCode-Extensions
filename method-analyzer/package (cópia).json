@@ -1,0 +1,54 @@
+{
+  "name": "prefix-order-checker",
+  "displayName": "RL - Ordem dos Prefixos",
+  "publisher": "Renan_Lacerda",
+  "description": "Verifica se os métodos dentro das classes seguem a ordem esperada de prefixos, exibindo avisos quando estão fora da sequência.",
+  "version": "0.0.3",
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "icon": "icon.png",
+  "activationEvents": [
+    "onLanguage:typescript",
+    "onLanguage:typescriptreact",
+    "onLanguage:javascript",
+    "onLanguage:javascriptreact",
+    "onLanguage:csharp"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "configuration": [
+      {
+        "title": "Prefix Order Rules",
+        "properties": {
+          "rl.prefix-order.rules": {
+            "type": "object",
+            "description": "Define a ordem esperada dos métodos por sufixo de classe. Cada chave representa um ou mais sufixos separados por vírgula (ex: 'Component' ou 'Service,Manager'). O valor é uma lista de prefixos ou nomes de métodos na ordem desejada.",
+            "default": {
+              "Component": ["constructor", "ngOnInit", "update", "destroy"],
+              "Service": ["constructor", "init", "subscribe", "execute", "dispose"],
+              "Pipe": ["transform"],
+              "Directive": ["constructor", "ngOnInit", "ngOnDestroy"],
+              "Calculator": ["Compute"],
+              "Handler": ["Handle"],
+              "Retriever": ["Get"],
+              "Factory": ["Create"],
+              "Provider": ["Get"],
+              "Sorter": ["By"],
+              "Filter": ["By"]
+            }
+          },
+          "rl.prefix-order.unknownSymbol": {
+            "type": "string",
+            "description": "Símbolo exibido após o nome da classe quando a ordem dos métodos não é reconhecida ou está incorreta.",
+            "default": "⚠️"
+          }
+        }
+      }
+    ]
+  }
+}

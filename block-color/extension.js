@@ -310,34 +310,66 @@ function updateDecorations(editor) {
         const openCount = (ln.match(/{/g) || []).length;
         const closeCount = (ln.match(/}/g) || []).length;
         braceDepthScan += openCount - closeCount;
-
-        // estamos "dentro da classe" quando já vimos a palavra class e
-        // o depth de chaves é maior que zero (ou quando a chave de abertura está na mesma linha)
         inClassPerLine[idx] = classSeen && braceDepthScan > 0;
     });
 
     const staticMethodDecoration = vscode.window.createTextEditorDecorationType({ color: staticMethodColor });
     decorationTypes.push(staticMethodDecoration);
 
-    const staticClassRegex = /\b([A-Z]\w*)\b(?=\.)/g;
+    // Nome. (A-Z ou minúsculo importado)
+    const staticClassRegex = /\b([A-Za-z_]\w*)\b(?=\.)/g;
+    // Nome( (ex: Number(, Math(, Date()
+    const staticCallRegex  = /\b([A-Z]\w*)\b(?=\s*\()/g;
     const staticClassRanges = [];
+
+    const globalStaticClasses = [
+        'Number', 'Math', 'Date', 'Object', 'String',
+        'Array', 'JSON', 'Symbol', 'BigInt', 'Reflect'
+    ];
+
+    // nomes importados (extraídos dos imports)
+    const importedNames = new Set();
+    lines.forEach(line => {
+        const m = line.match(/import\s*{\s*([^}]+)\s*}/);
+        if (m) {
+            m[1].split(',').forEach(name => {
+                const clean = name.trim().split(/\s+as\s+/)[0];
+                if (clean) importedNames.add(clean);
+            });
+        }
+    });
 
     lines.forEach((text, line) => {
         const t = text.trim();
-        // ignora comentários, imports/usings e também ignora linhas fora de classes
         if (t.startsWith('//') || t.startsWith('using') || t.startsWith('import') || !inClassPerLine[line]) return;
 
-        staticClassRegex.lastIndex = 0;
         let m;
+
+        // Nome. — pinta classes e variáveis importadas
+        staticClassRegex.lastIndex = 0;
         while ((m = staticClassRegex.exec(text)) !== null) {
             const start = m.index;
-            const className = m[1];
+            const name = m[1];
             const prefix = text.slice(Math.max(0, start - 10), start);
-            if (/(?:\bthis|\bsuper)(\?\.)?\.$/.test(prefix)) continue;
-            if (ignoreEnums && allEnums.has(className)) continue;
-            if (ignoredPrefixes.some(ignored => className.endsWith(ignored))) continue;
 
-            staticClassRanges.push(new vscode.Range(line, start, line, start + className.length));
+            if (/(?:\bthis|\bsuper)(\?\.)?\.$/.test(prefix)) continue;
+            if (ignoreEnums && allEnums.has(name)) continue;
+            if (ignoredPrefixes.some(ignored => name.endsWith(ignored))) continue;
+
+            // pinta se começa com maiúscula (classe) ou se é importado
+            if (/^[A-Z]/.test(name) || importedNames.has(name)) {
+                staticClassRanges.push(new vscode.Range(line, start, line, start + name.length));
+            }
+        }
+
+        // Nome( — global static calls
+        staticCallRegex.lastIndex = 0;
+        while ((m = staticCallRegex.exec(text)) !== null) {
+            const start = m.index;
+            const name = m[1];
+            if (globalStaticClasses.includes(name)) {
+                staticClassRanges.push(new vscode.Range(line, start, line, start + name.length));
+            }
         }
     });
 

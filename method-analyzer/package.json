@@ -1,0 +1,82 @@
+{
+  "name": "method-analyzer",
+  "displayName": "RL - Analisador de Métodos",
+  "description": "Analisa classes para verificar a ordem e os prefixos dos métodos em TypeScript, JavaScript e C#.",
+  "version": "1.0.0",
+  "publisher": "rl",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Linters",
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:typescript",
+    "onLanguage:typescriptreact",
+    "onLanguage:javascript",
+    "onLanguage:javascriptreact",
+    "onLanguage:csharp"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "RL Method Analyzer",
+      "properties": {
+        "rl.method-analyzer.prefixRules": {
+          "type": "object",
+          "default": {
+            "Component": ["constructor", "ngOnInit", "update", "destroy"],
+            "Service": ["constructor", "init", "subscribe", "execute", "dispose"],
+            "Pipe": ["transform"],
+            "Directive": ["constructor", "ngOnInit", "ngOnDestroy"]
+          },
+          "description": "Regras de prefixos esperados para classes com determinados sufixos (ex: Component, Service, etc.)."
+        },
+        "rl.method-analyzer.order": {
+          "type": "array",
+          "default": [
+            "Init",
+            "Load",
+            "Start",
+            "Update",
+            "Render",
+            "Handle",
+            "On",
+            "Get",
+            "Set",
+            "Save"
+          ],
+          "description": "Ordem esperada dos prefixos dos métodos dentro da classe."
+        },
+        "rl.method-analyzer.enforceCallOrder": {
+          "type": "boolean",
+          "default": false,
+          "description": "Se verdadeiro, os métodos chamados devem aparecer abaixo de quem os chama."
+        },
+        "rl.method-analyzer.enforceAlphabeticalOrder": {
+          "type": "boolean",
+          "default": true,
+          "description": "Se verdadeiro, aplica ordenação alfabética dentro de cada grupo de prefixos."
+        },
+        "rl.method-analyzer.ignoreMethods": {
+          "type": "array",
+          "default": ["constructor"],
+          "description": "Métodos ignorados pela análise de ordem e prefixos."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "vsce": "^2.21.1"
+  },
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/seuusuario/rl-method-analyzer"
+  },
+  "license": "MIT"
+}
